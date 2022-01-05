@@ -1,0 +1,3 @@
+[submodule "ScoreValidity"]
+	path = ScoreValidity
+	url = https://github.com/brandonneth/ScoreValidity.git
