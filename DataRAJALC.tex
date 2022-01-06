@@ -92,7 +92,7 @@ Such optimization portability was developed in RAJALC, an extension of RAJA inco
 This work created an inter-loop context for the purpose of schedule optimizations like loop fusion and overlapped tiling.
 While RAJALC enabled the portable specification of complex schedule changes, it left unleveraged a significant factor on performance: data layouts.
 Manipulating the layout of data in memory between computations can provide major performance benefits, but like scheduling optimizations can be laborious to implement and lack portability. 
-This work enables such transformations.
+\todo{This work fixes this using features of RAJA (layout policies and decision objects)}.
 First, we present an interface for declaring data layout changes between computations in a loop chain. 
 Second, we present an automated layout decider that selects optimal data layouts based on performance estimations.
 These systems work together, meaning the decider \enquote{fills in} the layout choices not made by the user.
