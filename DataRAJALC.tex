@@ -148,7 +148,41 @@ To implement such a layout change by hand requires the programmer to allocate a 
 
 \todo{Explain how layouts work}
 
-\section{User Specification of Data Format}
+\section{\texttt{FormatDecisions}: User Specification of Data Format}
+
+This work forwards the goal of enabling portable, declarative data optimizations begun by RAJALC.
+While RAJALC tackled the problem of scheduling optimizations, we target making data format changes between computations. 
+The new \verb.FormatDecisions. object is the central component of our system. 
+Its instantiation takes a tuple of references to Views that are possible targets of format changes and the kernel objects that constitute the whole computation.
+Two methods are used to register desired formats: \verb.set_format_before. and \verb.set_format_after..
+Both take the View to be reformated, the desired format, and the computation before or after which the desired format should be used.
+Once all the format choices are registered, the complete computation with the desired format conversions is generated using the \verb.finalize. method.
+
+
+\begin{figure}
+\begin{lstlisting}
+auto knl1 = make_kernel<KPOL>(segs1, [=](auto i0, auto i1, auto i2) {
+	E(i0, i1) += A(i0, i2) * B(i2, i1);
+});
+auto knl2 = make_kernel<KPOL>(segs2, [=](auto i0, auto i1, auto i2) {
+	F(i0, i1) += C(i0, i2) * D(i2, i1);
+});
+auto knl3 = make_kernel<KPOL>(segs3, [=](auto i0, auto i1, auto i2) {
+	G(i0, i1) += E(i0, i2) * F(i2, i1);
+});
+
+auto decisions = format_decisions(tie(B,D,F), knl1, knl2, knl3);
+
+decisions.set_format_before(B, {{1,0}}, knl1);
+decisions.set_format_before(D, {{1,0}}, knl2);
+
+decisions.set_format_before(F, {{0,1}}, knl1);
+decisions.set_format_after(F, {{1,0}}, knl2);
+
+auto computation = decisions.finalize();
+computation();
+\end{lstlisting}
+\end{figure}
 
 \todo{Explain how \texttt{FormatDecisions} object works for a computation}
 
@@ -167,8 +201,8 @@ However, the traversal order of an access compresses the kernel policy and data 
 
 \begin{figure}
 \begin{lstlisting}[
-	label={MatMulTraversalOrder}, 
-	caption={Two kernels implementing matrix multiplication using different kernel policies.}]
+	caption={Two kernels implementing matrix multiplication using different kernel policies.},
+	label={MatMulTraversalOrder}]
 View2D A(A_data, layout_01);
 View2D B(B_data, layout_10);
 View2D C(C_data, layout_01);
@@ -229,11 +263,25 @@ Microbenchmark 1 is an access to a 3-dimensional view in a 3-dimensional loop.
 Microbenchmark 2 is an access to a 2-dimensional view in a 3-dimensional loop, as in a matrix multiplication.
 Microbenchmark 3 is an access to a 3-dimensional view in a 4-dimensional loop.
 
+
 \begin{figure}
-  \includegraphics{benchmark1_boxplot.pdf}
-  \caption{Execution times for 3-dimensional loop accessing 3-dimensional view, grouped by traversal order.}
-  \label{TraversalBenchmark1}
+% \includegraphics{benchmark1_boxplot.pdf}
+\caption{Execution times for 3-dimensional loop accessing 3-dimensional view, grouped by traversal order.}
+\label{TraversalBenchmark1}
 \end{figure}
+
+\begin{figure}
+	% \includegraphics{benchmark2_boxplot.pdf}
+	\caption{Execution times for 3-dimensional loop accessing 2-dimensional view, grouped by traversal order.}
+	\label{TraversalBenchmark2}
+\end{figure}
+
+\begin{figure}
+	% \includegraphics{benchmark3_boxplot.pdf}
+	\caption{Execution times for 4-dimensional loop accessing 3-dimensional view, grouped by traversal order.}
+	\label{TraversalBenchmark3}
+\end{figure}
+
 Figure~\ref{TraversalBenchmark1} shows the execution times for the different traversal orders for microbenchmark 1. 
 With the exception of traversal order $(2,1,0)$, the traversal orders show good clustering.
 \todo{explanation for why the $(2,1,0)$ ones don't cluster as much}
@@ -242,21 +290,12 @@ This is likely because the bulk of the performance improvement comes from the in
 
 
 
-\begin{figure}
-  \includegraphics{benchmark2_boxplot.pdf}
-  \caption{Execution times for 3-dimensional loop accessing 2-dimensional view, grouped by traversal order.}
-  \label{TraversalBenchmark2}
-\end{figure}
 Figure~\ref{TraversalBenchmark2} shows the execution times for the different traversal orders for microbenchmark 2. 
 While the traversal orders for this microbenchmark are all highly clustered, they are less differentiated from one another. 
 For example, we see that the orders $(0,2)$ and $(1,2)$ have similar performance, as do $(2,0)$ and $(2,1)$. 
 The similarity in performance is again attributable to the influence of the position of the innermost loop iterator. 
 
-\begin{figure}
-  \includegraphics{benchmark3_boxplot.pdf}
-  \caption{Execution times for 4-dimensional loop accessing 3-dimensional view, grouped by traversal order.}
-  \label{TraversalBenchmark3}
-\end{figure}
+
 
 Figure~\ref{TraversalBenchmark3} shows the execution times for the different traversal orders for microbenchmark 3. 
 A similar pattern as the previous microbenchmarks emerges here: grouping based on the position of the innermost iterator. 
