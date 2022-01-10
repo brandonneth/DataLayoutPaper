@@ -121,13 +121,30 @@ Third, they provide a lambda function describing the body of the loop.
 While the execution constructs immediately execute the computation they describe, RAJALC introduced wrapper objects that enable the computations to be analyzed and transformed before execution. 
 The \verb.make_kernel. function seen at the end of Listing~\ref{MatMulTraversalOrder} creates one such kernel object.
 
-RAJA also provides an array wrapper class called a View, which supports easily changing the underlying layout of data. 
-For example, by changing the layout of a View, a user can switch from column-major to row-major without changing anything about the use of the View. 
-RAJALC leverages Views to enable runtime symbolic evaluation to ensure the safety of scheduling optimizations. 
-This work makes use of the layout specification to dynamically change the layout of data between computations to improve data reuse distances.
-The first two lines of Listing~\ref{MatMulTraversalOrder} show the definition of Views with different data layouts. 
+RAJA also provides an array wrapper class called a View.
+The View object has a number of capabilities that make it a valuable tool within RAJA codes.
+First, Views use the call operator to perform memory accesses. 
+By overloading this call operator for symbolic iterator types, RAJALC enabled the runtime symbolic evaluation of kernels that use Views.
+RAJALC used the access information gathered from symbolic evaluation to ensure the correctness of its scheduling optimizations.
+This work uses RAJALC's runtime symbolic evaluation to inform our performance model \todo{forward reference to where its discussed}.
+
+Second, Views fully parameterize their underlying data formats with the Layout object.
+Consider a programmer who wants to switch their data from row-major to column-major. 
+Without Views, every access to their data \verb.A[i][j]. has to be changed to \verb.A[j][i]. \textit{and} the definition of the array needs to be changed. 
+This is prohibitively expensive, especially when the programmer does not yet know the performance impact of such a decision.
+With Views however, the only change the programmer needs to make is to the View's definition: The layout permutation changes from $(0,1)$ to $(1,0)$.
+
 
 \section{Data Formats in RAJA}
+
+Throughout a computation, different parts of the computation access data in different orders.
+For example, \todo{explain 3MM or something}.
+Because different formats are optimal for different kernels, this creates an opportunity for optimization. 
+
+However, RAJA's built-in support for changing data layouts is minimal. 
+While Views can be instatiated with different layouts, changing the layout of an existing View is not as simple.
+This is because changing layouts also requires reordering the underlying data to match the new layout. 
+To implement such a layout change by hand requires the programmer to allocate a new temporary array, copy the data from the View to the temporary array in the right order, copy the data \textit{back} to the memory in the View, and then finally update the View's layout object.
 
 \todo{Explain how layouts work}
 
@@ -273,6 +290,12 @@ Our first evaluation targeted the kernels within the Polybench suite.
 Polybench contains 30 numerical computations in total. 
 Of those 30, 13 have good traversal orders for all multi-dimensional accesses, one uses only 1D data, and one uses external functions that inhibit RAJALC's symbolic evaluation.
 This leaves 15 benchmarks to evaluate.
+
+We evaluated the performance of three variants of the benchmarks.
+The first variant, \verb.RAJA_OpenMP., is the original RAJA implementation of the kernel.
+The second variant, \verb.Hand_Layout., implements the layout changes by hand.
+The third variant, \verb.Auto_Layout., implements the layout changes using our contribution.
+
 
 
 \todo{This table is temporary.}
