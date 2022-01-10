@@ -1,3 +1,7 @@
 [submodule "ScoreValidity"]
 	path = ScoreValidity
 	url = https://github.com/brandonneth/ScoreValidity.git
+[submodule "RAJAPerf"]
+	path = RAJAPerf
+	url = https://github.com/brandonneth/RAJAPerf.git
+	branch = autolayout
