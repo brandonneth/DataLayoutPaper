@@ -134,8 +134,7 @@ Without Views, every access to their data \verb.A[i][j]. has to be changed to \v
 This is prohibitively expensive, especially when the programmer does not yet know the performance impact of such a decision.
 With Views however, the only change the programmer needs to make is to the View's definition: The layout permutation changes from $(0,1)$ to $(1,0)$.
 
-
-\section{Data Formats in RAJA}
+\section{\texttt{FormatDecisions}: User Specification of Data Format}
 
 Throughout a computation, different parts of the computation access data in different orders.
 For example, \todo{explain 3MM or something}.
@@ -144,13 +143,12 @@ Because different formats are optimal for different kernels, this creates an opp
 However, RAJA's built-in support for changing data layouts is minimal. 
 While Views can be instatiated with different layouts, changing the layout of an existing View is not as simple.
 This is because changing layouts also requires reordering the underlying data to match the new layout. 
-To implement such a layout change by hand requires the programmer to allocate a new temporary array, copy the data from the View to the temporary array in the right order, copy the data \textit{back} to the memory in the View, and then finally update the View's layout object.
+To implement such a layout change by hand requires the programmer to allocate a new temporary array, 
+copy the data from the View to the temporary array in the right order, 
+copy the data \textit{back} to the memory in the View, 
+and then finally update the View's layout object
 
-\todo{Explain how layouts work}
-
-\section{\texttt{FormatDecisions}: User Specification of Data Format}
-
-This work forwards the goal of enabling portable, declarative data optimizations begun by RAJALC.
+This work removes that barrier by expanding the declarative data optimization system begun by RAJALC.
 While RAJALC tackled the problem of scheduling optimizations, we target making data format changes between computations. 
 The new \verb.FormatDecisions. object is the central component of our system. 
 Its instantiation takes a tuple of references to Views that are possible targets of format changes and the kernel objects that constitute the whole computation.
@@ -161,6 +159,8 @@ Once all the format choices are registered, the complete computation with the de
 
 \begin{figure}
 \begin{lstlisting}
+[caption={The 3MM benchmark implemented using FormatDecisions.}
+label={FormatDecisions3MM}]
 auto knl1 = make_kernel<KPOL>(segs1, [=](auto i0, auto i1, auto i2) {
 	E(i0, i1) += A(i0, i2) * B(i2, i1);
 });
@@ -184,7 +184,28 @@ computation();
 \end{lstlisting}
 \end{figure}
 
-\todo{Explain how \texttt{FormatDecisions} object works for a computation}
+\section{Performance Modeling}
+
+In addition to the format changes registered by the user, \verb.FormatDecisions. also uses a performance model to determine if additional format changes will improve performance. 
+This capability means that even without any registered format choices, \verb.FormatDecisions. often selects the same changes the user would themselves choose. 
+We encode the problem as an integer linear program where the solution represents our model's pick for the optimal layouts.
+
+
+We use binary decision variables representing whether or not a particular format is used at different points in the chain. 
+For example, there are eight decision variables for the \verb.B. View in Listing~\ref{FormatDecisions3MM}, one for each of the two possible formats at each of the four points in the chain. 
+While there are only three kernels in the chain, there is an additional point added for the \enquote{output} format that the View has after the computation is done. 
+We also use decision variables to represent the required format conversions.
+
+Four types of constraints are imposed on the decision variables.
+\begin{itemize}
+\item Format Uniqueness: At each time point, every View has exactly one selected format. 
+\item Conversion Uniqueness: At each conversion point, every View goes through exactly one conversion.
+\item Format-Conversion Matching: At each conversion point, the input format for the conversion matches the format of the immediately preceding time point. Similarly, the output format for the conversion matches the format of the immediately succeeding time point.
+\item User Prescription: All user-provided format choices are met.
+\end{itemize}
+
+The objective function is constructed using the estimated cost of the format choices and conversions. 
+The next section details how those costs are derived. 
 
 \section{Traversal Order}
 
