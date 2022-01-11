@@ -134,7 +134,7 @@ Without Views, every access to their data \verb.A[i][j]. has to be changed to \v
 This is prohibitively expensive, especially when the programmer does not yet know the performance impact of such a decision.
 With Views however, the only change the programmer needs to make is to the View's definition: The layout permutation changes from $(0,1)$ to $(1,0)$.
 
-\section{\texttt{FormatDecisions}: User Specification of Data Format}
+\section{User Specification of Data Format}
 
 Throughout a computation, different parts of the computation access data in different orders.
 For example, \todo{explain 3MM or something}.
@@ -158,9 +158,8 @@ Once all the format choices are registered, the complete computation with the de
 
 
 \begin{figure}
-\begin{lstlisting}
-[caption={The 3MM benchmark implemented using FormatDecisions.}
-label={FormatDecisions3MM}]
+\begin{lstlisting}[caption={The 3MM benchmark implemented using FormatDecisions.},
+	label={FormatDecisions3MM}]
 auto knl1 = make_kernel<KPOL>(segs1, [=](auto i0, auto i1, auto i2) {
 	E(i0, i1) += A(i0, i2) * B(i2, i1);
 });
@@ -205,13 +204,109 @@ Four types of constraints are imposed on the decision variables.
 \end{itemize}
 
 The objective function is constructed using the estimated cost of the format choices and conversions. 
-The next section details how those costs are derived. 
+Each decision variable is assigned a cost coefficient in the following manner.
+First, we execute and time a small loop with similar access patterns to the choice, then cache the result for later decision variables.
+Second, we multiply the microprofiling result by the number of iterations the choice affects.
+For example, a conversion decision for \verb.B. in Listing~\ref{FormatDecisions3MM} would be multiplied by the dimensions of \verb.B..
+In contrast, a format decision for \verb.B. for \verb.knl1. would be multiplied by all three loop dimensions. 
+The next section discusses how we reduce the amount of microprofiling necessary to make all of the estimates.
 
-\section{Traversal Order}
+\section{Cost Estimation}
 
-In this section, we describe how RAJALC estimates the cost of a particular layout choice and how cost metrics are reused where possible.
-When deciding between possible layout choices for a kernel, RAJALC determines the traversal order of each access in the kernel.
-An access' traversal order describes which iterators in a kernel traverse which dimensions of a view, based on the depth of the iterator and the strides of the dimensions.
+In this section, we describe how RAJALC estimates the cost of a particular layout choice and how cost estimates are reused for multiple decision variables.
+This is achieved using an access' simplified traversal order.
+
+\subsection{Identifying an Access}
+The access pattern of any View access is identified by the access argument order, the kernel policy order, and the layout order. 
+
+The access argument order describes the order of the loop iterators in the access with respect to the parameters of the lambda. In Listing~\ref{MatMulTraversalOrder}, the accesses to \verb.A., \verb.B., and \verb.C. have access argument orders $(2,0)$, $(2,1)$, and $(0,1)$, respectively. 
+
+The kernel policy order describes the order in which the iterators are increased. 
+This is equivalent to the nesting order of a loop.
+In Listing~\ref{MatMulTraversalOrder}, accesses made by \verb.knl1. have policy order $(0,1,2)$, while those mady by \verb.knl2. have policy order $(2,0,1)$.
+
+The layout order describes the layout of data in memory. 
+In Listing~\ref{MatMulTraversalOrder}, \verb.A. has layout order $(0,1)$, \verb.B. has $(1,0)$, and \verb.C. has $(0,1)$.
+
+For an $n$-dimensional kernel and a $d$-dimensional View, there are $n! * d! * n^d$ different combinations of policy, layout order, and access argument. 
+However, many of these accesses have similar, if not identical data access behavior. 
+Thus, we can greatly reduce the number of possible accesses that may need cost estimation. 
+
+\begin{figure}
+	\begin{lstlisting}[
+		caption={Two kernels implementing matrix multiplication using different kernel policies.},
+		label={MatMulTraversalOrder}]
+	View2D A(A_data, layout_01);
+	View2D B(B_data, layout_10);
+	View2D C(C_data, layout_01);
+	
+	auto loop_body = [=](auto i0, auto i1, auto i2) {
+		C(i0,i1) += A(i0,i2) * B(i2,i1);
+	}
+	
+	using Policy_012 = KernelPolicy<
+		statement::For<0, loop_exec,
+			statement::For<1, loop_exec,
+				  statement::For<2, loop_exec,
+					  statement::Lambda<0>
+				  >
+			>
+		  >
+	>;
+	using Policy_201 = KernelPolicy<
+		statement::For<2, loop_exec,
+			statement::For<0, loop_exec,
+				  statement::For<1, loop_exec,
+					  statement::Lambda<0>
+				  >
+			>
+		  >
+	>;
+	
+	auto knl1 = make_kernel<Policy_012>(bounds, loop_body);
+	auto knl2 = make_kernel<Policy_201>(bounds, loop_body);
+	\end{lstlisting}
+\end{figure}
+
+
+\subsection{Traversal Order}
+
+Because kernel policies and access arguments are defined at compile\todo{i want to say "code writing" time here} time while layouts are mutable at runtime, we want to model all accesses as different layout choices for a single pre-selected choice of kernel policy and argument order.
+
+
+
+\subsection{Simplified Traversal Order}
+
+\subsection{Empirical Verification}
+
+
+Our first reduction comes from the coupling between the access arguments and the loop iterators. We can normalize the access argument order by transforming the policy order. Using this reduction, we only need to model accesses that use the iterators in order. Listing~\ref{reduction1} shows two accesses that have the same access behavior. 
+
+\begin{figure}
+	\begin{lstlisting}[caption={Equivalent loops for first reduction process.}, label={reduction1}]
+kernel<POLICY_01>(... [](auto i0, auto i1) {
+		a(i1,i0)
+});
+
+kernel<POLICY_10>(... [](auto i0, auto i1) {
+		a(i0,i1)
+});
+	\end{lstlisting}
+\end{figure}
+
+The second reduction comes from the similarity between 
+\begin{figure}
+	\begin{lstlisting}[caption={Equivalent loops for second reduction process.}, label={reduction2}]
+kernel<POLICY_012>(... [](auto i0, auto i1, auto i2) {
+		a(i0,i2)
+});
+
+kernel<POLICY_01>(... [](auto i0, auto i1) {
+		a(i0,i1)
+});
+	\end{lstlisting}
+\end{figure}
+
 
 \subsection{Deriving the Traversal Order}
 
@@ -220,41 +315,7 @@ Estimating the cost of all of these choices separately for each access in a comp
 However, the traversal order of an access compresses the kernel policy and data layout into a single reusable feature that accurately predicts relative performance.
 
 
-\begin{figure}
-\begin{lstlisting}[
-	caption={Two kernels implementing matrix multiplication using different kernel policies.},
-	label={MatMulTraversalOrder}]
-View2D A(A_data, layout_01);
-View2D B(B_data, layout_10);
-View2D C(C_data, layout_01);
 
-auto loop_body = [=](auto i0, auto i1, auto i2) {
-	C(i0,i1) += A(i0,i2) * B(i2,i1);
-}
-
-using Policy_012 = KernelPolicy<
-	statement::For<0, loop_exec,
-    	statement::For<1, loop_exec,
-	  		statement::For<2, loop_exec,
-			  	statement::Lambda<0>
-	  		>
-		>
-  	>
->;
-using Policy_201 = KernelPolicy<
-	statement::For<2, loop_exec,
-    	statement::For<0, loop_exec,
-	  		statement::For<1, loop_exec,
-			  	statement::Lambda<0>
-	  		>
-		>
-  	>
->;
-
-auto knl1 = make_kernel<Policy_012>(bounds, loop_body);
-auto knl2 = make_kernel<Policy_201>(bounds, loop_body);
-\end{lstlisting}
-\end{figure}
 
 Listing~\ref{MatMulTraversalOrder} shows two implementations of a matrix multiplication using different kernel policies and involving views using different data layouts.
 Deriving the traversal order for an access requires the extraction of three values: the policy order, the layout order, and the argument order. 
