@@ -1,7 +1,7 @@
 LATEX = pdflatex
 BIBTEX = bibtex
 
-DOC = RAJALC
+DOC = DataRAJALC
 
 $(DOC): $(DOC).tex
 	$(LATEX) $(DOC)
