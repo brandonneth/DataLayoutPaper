@@ -182,22 +182,55 @@ This paper includes the following contributions:
 %%%%%%%%%%%%%%%
 \section{RAJA and RAJALC}
 
+\begin{figure}
+	\begin{lstlisting}[
+		caption={Two kernels implementing matrix multiplication using different kernel policies.},
+		label={MatMulTraversalOrder}]
+	View2D A(A_data, layout_01);
+	View2D B(B_data, layout_10);
+	View2D C(C_data, layout_01);
+	
+	auto loop_body = [=](auto i0, auto i1, auto i2) {
+		C(i0,i1) += A(i0,i2) * B(i2,i1);
+	}
+	
+	using Policy_012 = KernelPolicy<
+		statement::For<0, loop_exec,
+			statement::For<1, loop_exec,
+				  statement::For<2, loop_exec,
+					  statement::Lambda<0>
+				  >
+			>
+		  >
+	>;
+	using Policy_201 = KernelPolicy<
+		statement::For<2, loop_exec,
+			statement::For<0, loop_exec,
+				  statement::For<1, loop_exec,
+					  statement::Lambda<0>
+				  >
+			>
+		  >
+	>;
+	
+	auto knl1 = make_kernel<Policy_012>(bounds, loop_body);
+	auto knl2 = make_kernel<Policy_201>(bounds, loop_body);
+	\end{lstlisting}
+\end{figure}
+
 \todo{Introduce RAJA and RAJALC. kernel objects, symbolic evaluation, delay between specification and execution.}
 
 We use a variety of components of RAJA and RAJALC to enable automatic data format transformations. This section reviews how a computation is described in RAJA as well as the RAJALC extensions used in this work. 
 
-The foundational elements of RAJA are the execution constructs \verb.forall. and \verb.kernel.. 
-\todo{Brandon, can you be more specific what these execution constructs are?  templated functions?  template classes?
-something else?}
-These constructs separate the specification of the computation from the specification of its schedule. 
+The foundational elements of RAJA are the execution constructs, \verb.forall. and \verb.kernel.. 
+Implemented as templated function calls, these constructs separate the specification of the computation from the specification of its schedule. 
 The user provides three pieces of information when using these constructs. 
-First, they provide the execution policy. 
+First, they provide the execution policy as the only template argument. 
 This describes the structure of a loop, including schedule choices at each nesting level. 
 Second, they provide a tuple of iterators describing the loop bounds. 
 Third, they provide a lambda function describing the body of the loop.
 While the execution constructs immediately execute the computation they describe, RAJALC introduced wrapper objects that enable the computations to be analyzed and transformed before execution. 
 The \verb.make_kernel. function seen at the end of Listing~\ref{MatMulTraversalOrder} creates one such kernel object.
-\todo{Brandon, looks like you are referring to Listing 2 before Listing 1.  Maybe reorder the listings?}
 
 RAJA also provides an array wrapper class called a View.
 The View object has a number of capabilities that make it a valuable tool within RAJA codes.
@@ -297,8 +330,8 @@ This is achieved using an access' simplified traversal order.
 \subsection{Identifying an Access}
 The access pattern of any View access is identified by the access argument order, the kernel policy order, and the layout order. 
 
-The access argument order describes the order of the loop iterators in the access with respect to the parameters of the lambda. In Listing~\ref{MatMulTraversalOrder}, the accesses to \verb.A., \verb.B., and \verb.C. have access argument orders $(2,0)$, $(2,1)$, and $(0,1)$, respectively. 
-\todo{Brandon, you will need to spell this out more.  Is A supposed to be (0,2) because in listing 2 it is A(i0,i2)?}
+The access argument order describes the order of the loop iterators in the access with respect to the parameters of the lambda. In Listing~\ref{MatMulTraversalOrder}, the accesses to \verb.A., \verb.B., and \verb.C. have access argument orders $(0,2)$, $(2,1)$, and $(0,1)$, respectively. 
+
 
 The kernel policy order describes the order in which the iterators are increased. 
 This is equivalent to the nesting order of a loop.
@@ -316,42 +349,6 @@ However, many of these accesses have similar, if not identical data access behav
 Thus, we can greatly reduce the number of possible accesses that may need cost estimation. 
 \todo{Brandon, then for this new paragraph about reducing accesses, show some of the ones from
 this list you made in the last paragraph that are going to have the same performance.}
-
-\begin{figure}
-	\begin{lstlisting}[
-		caption={Two kernels implementing matrix multiplication using different kernel policies.},
-		label={MatMulTraversalOrder}]
-	View2D A(A_data, layout_01);
-	View2D B(B_data, layout_10);
-	View2D C(C_data, layout_01);
-	
-	auto loop_body = [=](auto i0, auto i1, auto i2) {
-		C(i0,i1) += A(i0,i2) * B(i2,i1);
-	}
-	
-	using Policy_012 = KernelPolicy<
-		statement::For<0, loop_exec,
-			statement::For<1, loop_exec,
-				  statement::For<2, loop_exec,
-					  statement::Lambda<0>
-				  >
-			>
-		  >
-	>;
-	using Policy_201 = KernelPolicy<
-		statement::For<2, loop_exec,
-			statement::For<0, loop_exec,
-				  statement::For<1, loop_exec,
-					  statement::Lambda<0>
-				  >
-			>
-		  >
-	>;
-	
-	auto knl1 = make_kernel<Policy_012>(bounds, loop_body);
-	auto knl2 = make_kernel<Policy_201>(bounds, loop_body);
-	\end{lstlisting}
-\end{figure}
 
 
 \subsection{Traversal Order}
