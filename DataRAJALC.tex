@@ -91,27 +91,104 @@ Especially in high performance computing contexts, the portability of optimizati
 Such optimization portability was developed in RAJALC, an extension of RAJA incorporating the loop chain abstraction.
 This work created an inter-loop context for the purpose of schedule optimizations like loop fusion and overlapped tiling.
 While RAJALC enabled the portable specification of complex schedule changes, it left unleveraged a significant factor on performance: data layouts.
+\todo{Brandon, I am not sure we want to bring up RAJALC.  Unless the symbolic execution in RAJALC is how you
+are doing the data layout specifications and layout changes as well?  Or developing the model maybe?  The
+connection needs to be made explicit.  I take a guess in the draft intro.}
 Manipulating the layout of data in memory between computations can provide major performance benefits, but like scheduling optimizations can be laborious to implement and lack portability. 
 \todo{This work fixes this using features of RAJA (layout policies and decision objects)}.
 First, we present an interface for declaring data layout changes between computations in a loop chain. 
 Second, we present an automated layout decider that selects optimal data layouts based on performance estimations.
 These systems work together, meaning the decider \enquote{fills in} the layout choices not made by the user.
-This allows the user to specify as much or as little of the layout information as they please and still get the performance benefits of changing data layouts.  
+This allows the user to specify as much or as little of the layout information as they please and still obtain the performance benefits of changing data layouts.  
 We evaluate our system on \todo{what}, where it achieves \todo{what}.
 \end{abstract}
 
 \maketitle
 
 \section{Introduction}
-\todo{Motivate the problem of performance portability, different layouts for different systems, sometimes the transofrmation is worth it sometimes it isnt, etc}
+%\todo{Motivate the problem of performance portability, different layouts for different systems, sometimes the transofrmation is worth it sometimes it isnt, etc}
+\todo{Brandon, based on the below introduction draft, I think the abstract is a bit too broad in the beginning.
+I recommend you rewrite it with the big picture problem being about the difficulty of managing data layouts
+effectively.  The paper doesn't really speak to performance portability unless you plan to show that the
+performance modeling approach is portable to many different architectures, which would be a possible
+direction.}
 
+\todo{Brandon, also we need to figure out how parallelism is related to this work, if at all.  It seems like the
+data layouts are important because of the sequential array access order.  The below introduction does NOT
+bring in parallelism yet due to my lack of understanding on this point.}
+
+The order that data is organized in memory and then accessed has always been recognized to have a
+significant impact on performance~\cite{needrefs}.  
+On a typical cache-based system, iterating through a two-dimensional
+array in column-order when the array is stored in row-order can lead to a 10$\times$ slowdown.
+\todo{This used to be the case, but some new numbers put in a footnote or a citation to a paper with such
+results (look for impact of loop permutation) would work.}
+Although mechanisms such as compiler optimizations (loop permutation) and data layout policies like
+those in Kokkos (and RAJA?) have the potential to align data layout and computation schedules, the
+problem becomes untenable to fully automate or handle only by the programmer when the number
+of loops and arrays involved grow.
+Thus, in this paper, we present an approach that provides the programmer an API in the RAJA C++
+parallel library for specifying as few
+or as many data layout decisions in a sequence of loops that share data (otherwise known as a loop chain).
+We also present a portable cost model based on microbenchmarking 
+for filling in any of the decisions that the programmer does not want to specify.
+
+\todo{RUNNING EXAMPLE: A paragraph showing an example sequence of loops 
+(2 would be sufficient) 
+where you can show a scatter plot of performance based on different data layout choices.  
+The Listing 1 example of 3MM would probably work.
+The main points to make
+are that which data layout is selected has a significant performance impact and that sometimes
+it is worth the cost of dynamically changing the data layout between computations.}
+
+Although controlling data layout is quite important, the options programmers have to control
+data layouts in coordination with loop schedules have limitations.
+
+Compiler optimizations such as loop permutation have been developed to change loop
+schedules so that a loop traversal order better aligns with data layout.
+However, general purpose compilers (1) have difficulties analyzing for the relationship between
+data layout and schedule due to things like aliasing and lack of multidimensional arrays in 
+C/C++ languages, (2) do not generally expose fine-grained data layout or loop optimization
+controls to users, and (3) typically do not optimize across multiple loops well.
+
+Data layout policies provided in libraries like Kokkos~\cite{Kokkosdatalayout} (and RAJA?)
+and programming languages like Chapel~\cite{Chapeldomainmappingpaper?} give
+programmers control over the data layout of multi-dimensional arrays, but do not 
+provide assistance for switching between data layouts between computations (true?) 
+nor help with selecting the most effective data layout strategy for a sequence of computations.
+
+In this paper, we present an extension to the RAJA C++ library that enables a programmer
+to specify the data layout for each multi-dimensional array before each 
+computation\footnote{Since the control is completely exposed, an autotuner could also try out different options.}.
+\todo{Show the api for specifying the best performing data layout strategy
+for the RUNNING EXAMPLE.}
+However, the programmer does not have to specify all data layout information, because
+we also present a run-time performance model based on microbenchmarking that is
+then fed into an Integer Linear Programming problem to make all of the data layout decisions
+that the programmer has not made.
+The performance model and ILP solver can run dynamically or ahead of time.
+
+This paper includes the following contributions:
+\begin{itemize}
+\item An API in RAJA for specifying data layouts and data layout transformations.
+\item A performance model to select a data layout and data layout transformation strategy for 
+         a loop chain.
+\item An evaluation of the performance model that shows ...\todo{how often is it right on how many architectures}
+\item An optimization for reducing the amount of micro-benchmarking needed.
+\item SLOC and performance results for the resulting data layouts on 3MM, ...
+\end{itemize} 
+
+
+%%%%%%%%%%%%%%%
 \section{RAJA and RAJALC}
 
-\todo{INtroduce RAJA and RAJALC. kernel objects, symbolic evaluation, delay between specification and execution.}
+\todo{Introduce RAJA and RAJALC. kernel objects, symbolic evaluation, delay between specification and execution.}
 
 We use a variety of components of RAJA and RAJALC to enable automatic data format transformations. This section reviews how a computation is described in RAJA as well as the RAJALC extensions used in this work. 
 
 The foundational elements of RAJA are the execution constructs \verb.forall. and \verb.kernel.. 
+\todo{Brandon, can you be more specific what these execution constructs are?  templated functions?  template classes?
+something else?}
 These constructs separate the specification of the computation from the specification of its schedule. 
 The user provides three pieces of information when using these constructs. 
 First, they provide the execution policy. 
@@ -120,6 +197,7 @@ Second, they provide a tuple of iterators describing the loop bounds.
 Third, they provide a lambda function describing the body of the loop.
 While the execution constructs immediately execute the computation they describe, RAJALC introduced wrapper objects that enable the computations to be analyzed and transformed before execution. 
 The \verb.make_kernel. function seen at the end of Listing~\ref{MatMulTraversalOrder} creates one such kernel object.
+\todo{Brandon, looks like you are referring to Listing 2 before Listing 1.  Maybe reorder the listings?}
 
 RAJA also provides an array wrapper class called a View.
 The View object has a number of capabilities that make it a valuable tool within RAJA codes.
@@ -220,17 +298,24 @@ This is achieved using an access' simplified traversal order.
 The access pattern of any View access is identified by the access argument order, the kernel policy order, and the layout order. 
 
 The access argument order describes the order of the loop iterators in the access with respect to the parameters of the lambda. In Listing~\ref{MatMulTraversalOrder}, the accesses to \verb.A., \verb.B., and \verb.C. have access argument orders $(2,0)$, $(2,1)$, and $(0,1)$, respectively. 
+\todo{Brandon, you will need to spell this out more.  Is A supposed to be (0,2) because in listing 2 it is A(i0,i2)?}
 
 The kernel policy order describes the order in which the iterators are increased. 
 This is equivalent to the nesting order of a loop.
 In Listing~\ref{MatMulTraversalOrder}, accesses made by \verb.knl1. have policy order $(0,1,2)$, while those mady by \verb.knl2. have policy order $(2,0,1)$.
+\todo{Brandon, here I am guessing it isn't the policy name but the For loop nesting order in the KernelPolicy?}
 
 The layout order describes the layout of data in memory. 
 In Listing~\ref{MatMulTraversalOrder}, \verb.A. has layout order $(0,1)$, \verb.B. has $(1,0)$, and \verb.C. has $(0,1)$.
+\todo{Brandon, how are layout\_01, etc. defined?}
 
 For an $n$-dimensional kernel and a $d$-dimensional View, there are $n! * d! * n^d$ different combinations of policy, layout order, and access argument. 
+\todo{Brandon, walk through this with the example in Listing 2.  Go ahead and list all of the possibilities.}
+
 However, many of these accesses have similar, if not identical data access behavior. 
 Thus, we can greatly reduce the number of possible accesses that may need cost estimation. 
+\todo{Brandon, then for this new paragraph about reducing accesses, show some of the ones from
+this list you made in the last paragraph that are going to have the same performance.}
 
 \begin{figure}
 	\begin{lstlisting}[
@@ -271,15 +356,23 @@ Thus, we can greatly reduce the number of possible accesses that may need cost e
 
 \subsection{Traversal Order}
 
-Because kernel policies and access arguments are defined at compile\todo{i want to say "code writing" time here} time while layouts are mutable at runtime, we want to model all accesses as different layout choices for a single pre-selected choice of kernel policy and argument order.
+%Because kernel policies and access arguments are defined at compile\todo{i want to say "code writing" time here} time while layouts are mutable at runtime, we want to model all accesses as different layout choices for a single pre-selected choice of kernel policy and argument order.
+The programmer decides the kernel policies and access arguments.
+The piece we automate here is deciding what the data layout of the various arrays accessed by
+the kernels should be at various points in the loop chain.
+To do this we want to model the cost of all of the data accesses for different layout choices
+given a pre-selected kernel policy and access argument order.
+\todo{The reader is a bit lost at this point.  We need to give them the bigger picture earlier.}
 
 
 
 \subsection{Simplified Traversal Order}
 
+\todo{I would rather this come later after the main idea of how you are doing the modeling is presented.}
+
 \subsection{Empirical Verification}
 
-
+\todo{Are you verifying the reduction in microbenchmarks needed or verifying the objective function period?}
 Our first reduction comes from the coupling between the access arguments and the loop iterators. We can normalize the access argument order by transforming the policy order. Using this reduction, we only need to model accesses that use the iterators in order. Listing~\ref{reduction1} shows two accesses that have the same access behavior. 
 
 \begin{figure}
@@ -310,6 +403,7 @@ kernel<POLICY_01>(... [](auto i0, auto i1) {
 
 \subsection{Deriving the Traversal Order}
 
+\todo{Brandon, who is deriving the traversal order?  Symbolic execution?}
 Given an $n$-dimensional kernel that accesses a $d$-dimensional view, there are $n! * d!$ different possible combinations of kernel policy and data layout. 
 Estimating the cost of all of these choices separately for each access in a computation is prohibitively expensive, especially using any sort of dynamic benchmarking. 
 However, the traversal order of an access compresses the kernel policy and data layout into a single reusable feature that accurately predicts relative performance.
@@ -335,6 +429,7 @@ This traversal order tells us that in the access to \verb.B. in \verb.knl2., the
 
 \subsection{Traversal Order as a Performance Metric}
 
+\todo{Brandon, this motivation needs to come a lot earlier in the paper.}
 Our claim is that the traversal order of an access is an accurate predictive metric for the relative performance of a layout choice. 
 We support this claim empirically using performance data from three microbenchmarks.
 For each microbenchmark, we record the 5-run average execution time of every combination of kernel policy and data layout. 
@@ -371,7 +466,7 @@ Also, the six possible traversal orders show good differentiation, with the exce
 This is likely because the bulk of the performance improvement comes from the innermost loop in a nest traversing the stride 1 dimension of the data.
 
 
-
+\todo{Brandon, I am not seeing these figures right now.  Have they not been included into the repository yet?}
 Figure~\ref{TraversalBenchmark2} shows the execution times for the different traversal orders for microbenchmark 2. 
 While the traversal orders for this microbenchmark are all highly clustered, they are less differentiated from one another. 
 For example, we see that the orders $(0,2)$ and $(1,2)$ have similar performance, as do $(2,0)$ and $(2,1)$. 
@@ -387,6 +482,7 @@ Because it condenses the policy, the layout, and the arguments used in the acces
 Similarly, the benchmarking results for traversal orders gathered for one computation can be reused when modeling another computation.
 
 \section{A Performance Model for Data Format}
+\todo{Brandon, this is one of the key contributions of this paper and it is buried right now.}
 
 \todo{explain how we use the traversal order information to build up a model and choose layouts and generate the computation}
 
