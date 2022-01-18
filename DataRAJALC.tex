@@ -125,7 +125,7 @@ array in column-order when the array is stored in row-order can lead to a 10$\ti
 results (look for impact of loop permutation) would work.}
 Although mechanisms such as compiler optimizations (loop permutation) and data layout policies like
 those in Kokkos (and RAJA?) have the potential to align data layout and computation schedules, the
-problem becomes untenable to fully automate or handle only by the programmer when the number
+problem becomes untenable to fully automate \todo{Kennedy and Kremer 1995 does heuristic based layouts automatically, no limit on the number of loops/arrays} or handle only by the programmer when the number
 of loops and arrays involved grow.
 Thus, in this paper, we present an approach that provides the programmer an API in the RAJA C++
 parallel library for specifying as few
@@ -555,8 +555,21 @@ trmm        & Yes
 
 \subsection{Case Study 3: Kripke}
 
+\section{Related Work}
+
+Kennedy and Kremer~\cite{kennedy1995automatic} developed an approach for automatically selecting data layouts for distributed arrays within High Performance Fortran (HPF). 
+The high level optimization framework is similar to ours: breaking the program into segments, constructing a search space of layouts for each segment, estimating the cost of each layout choice, and selecting one candidate for each segment so that overall cost is minimized. 
+Because they target distributed arrays, their approach considers the alignment of arrays with each other, while our approach considers the direct striding costs of each array separately. 
+
+Chen, Ozturk, and Kandemir~\cite{Chen2004ilp} develop a model of locality using a 0-1 ILP formulation. 
+Their decision variables indicate mappings between data elements and memory as well as scheduling choices surrounding when data elements are accessed. 
+In their formulation, each data element is considered independently, meaning each array element has its own decision variable. 
+Furthermore they assume complete flexibility of data ordering in memory, meaning there are no restrictions on array data being stored together.
+
 
 \section{Conclusion}
 
 
+\bibliographystyle{abbrev}
+\bibliography{DataRAJALC}
 \end{document}
