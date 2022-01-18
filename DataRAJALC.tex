@@ -86,22 +86,32 @@ escapeinside={<@}{@>}
 \begin{document}
 
 \begin{abstract}
-In a world of ever-increasing diversity of computing platform, performance portability is of critical importance. 
-Especially in high performance computing contexts, the portability of optimizations balancing parallelism and data movement are key. 
-Such optimization portability was developed in RAJALC, an extension of RAJA incorporating the loop chain abstraction.
-This work created an inter-loop context for the purpose of schedule optimizations like loop fusion and overlapped tiling.
-While RAJALC enabled the portable specification of complex schedule changes, it left unleveraged a significant factor on performance: data layouts.
-\todo{Brandon, I am not sure we want to bring up RAJALC.  Unless the symbolic execution in RAJALC is how you
-are doing the data layout specifications and layout changes as well?  Or developing the model maybe?  The
-connection needs to be made explicit.  I take a guess in the draft intro.}
-Manipulating the layout of data in memory between computations can provide major performance benefits, but like scheduling optimizations can be laborious to implement and lack portability. 
-\todo{This work fixes this using features of RAJA (layout policies and decision objects)}.
-First, we present an interface for declaring data layout changes between computations in a loop chain. 
-Second, we present an automated layout decider that selects optimal data layouts based on performance estimations.
-These systems work together, meaning the decider \enquote{fills in} the layout choices not made by the user.
+%In a world of ever-increasing diversity of computing platform, performance portability is of critical importance. 
+%Especially in high performance computing contexts, the portability of optimizations balancing parallelism and data movement are key. 
+%Such optimization portability was developed in RAJALC, an extension of RAJA incorporating the loop chain abstraction.
+%This work created an inter-loop context for the purpose of schedule optimizations like loop fusion and overlapped tiling.
+%While RAJALC enabled the portable specification of complex schedule changes, it left unleveraged a significant factor on performance: data layouts.
+%\todo{Brandon, I am not sure we want to bring up RAJALC.  Unless the symbolic execution in RAJALC is how you
+%are doing the data layout specifications and layout changes as well?  Or developing the model maybe?  The
+%connection needs to be made explicit.  I take a guess in the draft intro.}
+
+
+
+The layout of data in memory is a key consideration in high performance computing applications.
+From reducing cache and page misses to relieving pressure on memory bandwidth to avoiding inter-process communication, good data layout improves performance at all levels of an application.
+RAJA, a C++ performance portability library, incorporates the layout of an application's data into its definition.
+This means that a developer can try out different layouts without major refactoring costs.
+However, in some applications, it is beneficial to change the data layout mid-computation to facilitate better locality.
+Implementing such a mid-computation layout change in RAJA can improve performance, but is laborious to implement and lacks portability.
+This work remedies RAJA's shortcoming by introducing a lightweight, declarative API for changing data layouts between computations.
+Also, we present an automated layout decider that selects optimal layouts based on performance estimations. 
+These systems work together, meaning the decider \enquote{fills in} layout choices not made by the user.
 This allows the user to specify as much or as little of the layout information as they please and still obtain the performance benefits of changing data layouts.  
+Furthermore, our system is built directly into the RAJA library, meaning that no additional build steps are required.
 We evaluate our system on \todo{what}, where it achieves \todo{what}.
 \end{abstract}
+
+
 
 \maketitle
 
