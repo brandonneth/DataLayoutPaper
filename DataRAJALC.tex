@@ -116,40 +116,43 @@ We evaluate our system on \todo{what}, where it achieves \todo{what}.
 \maketitle
 
 \section{Introduction}
-%\todo{Motivate the problem of performance portability, different layouts for different systems, sometimes the transofrmation is worth it sometimes it isnt, etc}
-\todo{Brandon, based on the below introduction draft, I think the abstract is a bit too broad in the beginning.
-I recommend you rewrite it with the big picture problem being about the difficulty of managing data layouts
-effectively.  The paper doesn't really speak to performance portability unless you plan to show that the
-performance modeling approach is portable to many different architectures, which would be a possible
-direction.}
 
-\todo{Brandon, also we need to figure out how parallelism is related to this work, if at all.  It seems like the
-data layouts are important because of the sequential array access order.  The below introduction does NOT
-bring in parallelism yet due to my lack of understanding on this point.}
+How data is stored and accesses has always been recognized to have a significant impact on performance. 
+On a typical cache-based system, iterating through a two-dimensional array in column-order when data is 
+stored in row-order can lead to a \todo{how much} slowdown 
+\todo{cite... what if we just used our own results here? The verification of the traversal order stuff will show this}.
+Although mechanisms such as compiler optimizations (loop permutation/interchange) 
+and data layout policies like those in Kokkos \cite{edwards2014kokkos} and RAJA \cite{hornung2014RAJA} have the potential to align data layout with computation schedules, they become difficult to automate and laborious to manage by-hand as the number of loops and arrays grow.
+\todo{Probably a good idea to refer to existing solutions to this problem as my familiarity with the literature grows}
 
-The order that data is organized in memory and then accessed has always been recognized to have a
-significant impact on performance~\cite{needrefs}.  
-On a typical cache-based system, iterating through a two-dimensional
-array in column-order when the array is stored in row-order can lead to a 10$\times$ slowdown.
-\todo{This used to be the case, but some new numbers put in a footnote or a citation to a paper with such
-results (look for impact of loop permutation) would work.}
-Although mechanisms such as compiler optimizations (loop permutation) and data layout policies like
-those in Kokkos (and RAJA?) have the potential to align data layout and computation schedules, the
-problem becomes untenable to fully automate \todo{Kennedy and Kremer 1995 does heuristic based layouts automatically, no limit on the number of loops/arrays} or handle only by the programmer when the number
-of loops and arrays involved grow.
-Thus, in this paper, we present an approach that provides the programmer an API in the RAJA C++
-parallel library for specifying as few
-or as many data layout decisions in a sequence of loops that share data (otherwise known as a loop chain).
-We also present a portable cost model based on microbenchmarking 
-for filling in any of the decisions that the programmer does not want to specify.
+Thus, in this paper, we present an approach for exposing data layout decisions to the programmer in the C++ performance portability library RAJA.
+Our API allows the programmer to specify as many data layout decisions in a sequence of data-sharing loops (otherwise known as a loop chain~\cite{krieger2013loop}) as they choose.
+Then, using a portable cost model based on microbenchmarking, our system identifies any remaining layout changes that will improve performance.  
 
-\todo{RUNNING EXAMPLE: A paragraph showing an example sequence of loops 
-(2 would be sufficient) 
-where you can show a scatter plot of performance based on different data layout choices.  
-The Listing 1 example of 3MM would probably work.
-The main points to make
-are that which data layout is selected has a significant performance impact and that sometimes
-it is worth the cost of dynamically changing the data layout between computations.}
+Figure~\ref{IntroExample} shows how important good data layout is. 
+The BadLayout column shows the execution time for a matrix multiplication where the three arrays are laid out opposite of their access order. 
+The GoodLayout column shows the execution time for the same matrix multiplication when the arrays are laid out to match their access order.
+Finally, the LayoutChange column shows the execution time of code that changes the layout from the bad layout to the good one.
+As the graph shows, there is significant performance improvement ($1.51\times$ speedup) simply by changing the data layout, and the cost of performing the layout change is negligible ($1.47\times$ speedup when including conversion time). 
+
+\begin{figure}
+	\includegraphics[width=0.7\columnwidth]{ScoreValidity/IntroExampleGraph.pdf}
+	\caption{Execution time for matrix multiplication using different layouts and execution time for code changing the layouts of the same arrays.}
+	\label{IntroExample}
+\end{figure}
+
+\todo{Create RUNNING EXAMPLE. I think the simpler example in figure 1 is better for the points its trying to make, but we need a running example for using our interface. I think this will separate out the claims that there is performance gains to be had from the claims that our method gives those performance gains.}
+% \todo{Brandon, also we need to figure out how parallelism is related to this work, if at all.  It seems like the
+% data layouts are important because of the sequential array access order.  The below introduction does NOT
+% bring in parallelism yet due to my lack of understanding on this point.}
+
+% \todo{RUNNING EXAMPLE: A paragraph showing an example sequence of loops 
+% (2 would be sufficient) 
+% where you can show a scatter plot of performance based on different data layout choices.  
+% The Listing 1 example of 3MM would probably work.
+% The main points to make
+% are that which data layout is selected has a significant performance impact and that sometimes
+% it is worth the cost of dynamically changing the data layout between computations.}
 
 Although controlling data layout is quite important, the options programmers have to control
 data layouts in coordination with loop schedules have limitations.
@@ -160,13 +163,16 @@ However, general purpose compilers (1) have difficulties analyzing for the relat
 data layout and schedule due to things like aliasing and lack of multidimensional arrays in 
 C/C++ languages, (2) do not generally expose fine-grained data layout or loop optimization
 controls to users, and (3) typically do not optimize across multiple loops well.
+\todo{Michelle: My understanding is that also you can't optimize two accesses at once with this method, bc changes to optimize one may un-optimize the other. Is this worth mentioning as well?}
+\todo{We should have citations for these limitations probably}
 
-Data layout policies provided in libraries like Kokkos~\cite{Kokkosdatalayout} (and RAJA?)
-and programming languages like Chapel~\cite{Chapeldomainmappingpaper?} give
+Data layout policies provided in libraries like Kokkos or RAJA
+and programming languages like Chapel~\cite{diaconescu2007approach} give
 programmers control over the data layout of multi-dimensional arrays, but do not 
-provide assistance for switching between data layouts between computations (true?) 
+provide assistance for switching between data layouts between computations \todo{confirm for Kokkos}
 nor help with selecting the most effective data layout strategy for a sequence of computations.
 
+\todo{this paragraph seems to echo the above. I'm going to try to make it address the limitations better. Or change the flow.}
 In this paper, we present an extension to the RAJA C++ library that enables a programmer
 to specify the data layout for each multi-dimensional array before each 
 computation\footnote{Since the control is completely exposed, an autotuner could also try out different options.}.
@@ -576,10 +582,10 @@ Their decision variables indicate mappings between data elements and memory as w
 In their formulation, each data element is considered independently, meaning each array element has its own decision variable. 
 Furthermore they assume complete flexibility of data ordering in memory, meaning there are no restrictions on array data being stored together.
 
-
+Unat et. al.~\cite{unat2017trends} review trends in HPC related to data locality. They provide a variety of definitions which we utilize in our work. However, their definition of traversal order is not quite in line with RAJA's layout types, as layout changes affect the traversal order without changing the indices used. 
 \section{Conclusion}
 
 
-\bibliographystyle{abbrev}
+\bibliographystyle{abbrv}
 \bibliography{DataRAJALC}
 \end{document}
