@@ -137,7 +137,7 @@ As the graph shows, there is significant performance improvement ($1.51\times$ s
 
 \begin{figure}
 	\includegraphics[width=0.7\columnwidth]{ScoreValidity/IntroExampleGraph.pdf}
-	\caption{Execution time for matrix multiplication using different layouts and execution time for code changing the layouts of the same arrays.}
+	\caption{Execution time for matrix multiplication using optimal and non-optimal data layouts and execution time for converting from non-optimal to optimal.}
 	\label{IntroExample}
 \end{figure}
 
@@ -200,53 +200,67 @@ This paper includes the following contributions:
 
 \begin{figure}
 	\begin{lstlisting}[
-		caption={Two kernels implementing matrix multiplication using different kernel policies.},
-		label={MatMulTraversalOrder}]
+		caption={The running example for this paper. 
+		We start with an implementation of the 3MM kernel (E = A * B, F = C * D, G = E * F) in RAJA.},
+		label={3MMStart}]
+	auto layout_01 = make_permuted_layout(sizes, {{0,1}});
+	auto layout_10 = make_permuted_layout(sizes, {{1,0}});
 	View2D A(A_data, layout_01);
 	View2D B(B_data, layout_10);
-	View2D C(C_data, layout_01);
+	//initializations proceed similarly for C-G
+
+	auto loop_body1 = [&](auto i0, auto i1, auto i2) {
+		E(i0, i1) += A(i0,i2) * B(i2,i1);
+	};
+	auto loop_body2 = [&](auto i0, auto i1, auto i2) {
+		F(i0, i1) += C(i0,i2) * D(i2,i1);
+	};
+	auto loop_body3 = [&](auto i0, auto i1, auto i2) {
+		G(i0, i1) += E(i0,i2) * F(i2,i1);
+	};
 	
-	auto loop_body = [=](auto i0, auto i1, auto i2) {
-		C(i0,i1) += A(i0,i2) * B(i2,i1);
-	}
-	
-	using Policy_012 = KernelPolicy<
-		statement::For<0, loop_exec,
-			statement::For<1, loop_exec,
-				  statement::For<2, loop_exec,
-					  statement::Lambda<0>
-				  >
+	using POLICY = KernelPolicy<
+		statement::For<0,omp_parallel_for_exec,
+			statement::For<1,loop_exec,
+				statement::For<2,loop_exec,
+					statement::Lambda<0>
+				>
 			>
-		  >
+		>
 	>;
-	using Policy_201 = KernelPolicy<
-		statement::For<2, loop_exec,
-			statement::For<0, loop_exec,
-				  statement::For<1, loop_exec,
-					  statement::Lambda<0>
-				  >
-			>
-		  >
-	>;
-	
-	auto knl1 = make_kernel<Policy_012>(bounds, loop_body);
-	auto knl2 = make_kernel<Policy_201>(bounds, loop_body);
+
+	auto one_seg = RangeSegment(0,N);
+	auto segs = make_tuple(one_seg, one_seg, one_seg);
+
+	auto knl1 = make_kernel<POLICY>(segs, loop_body1);
+	auto knl2 = make_kernel<POLICY>(segs, loop_body2);
+	auto knl3 = make_kernel<POLICY>(segs, loop_body3);
+
+	knl1();
+	knl2();
+	knl3();
 	\end{lstlisting}
 \end{figure}
 
 \todo{Introduce RAJA and RAJALC. kernel objects, symbolic evaluation, delay between specification and execution.}
 
-We use a variety of components of RAJA and RAJALC to enable automatic data format transformations. This section reviews how a computation is described in RAJA as well as the RAJALC extensions used in this work. 
+We use a variety of components of RAJA to enable automatic data format transformations, as well as features of the loop chain extension RAJALC~\todo{cite}. 
+This section reviews how a computation is described in RAJA, working with the implementation of the 3MM kernel found in Listing~\ref{3MMStart}.
 
 The foundational elements of RAJA are the execution constructs, \verb.forall. and \verb.kernel.. 
-Implemented as templated function calls, these constructs separate the specification of the computation from the specification of its schedule. 
-The user provides three pieces of information when using these constructs. 
-First, they provide the execution policy as the only template argument. 
-This describes the structure of a loop, including schedule choices at each nesting level. 
-Second, they provide a tuple of iterators describing the loop bounds. 
-Third, they provide a lambda function describing the body of the loop.
-While the execution constructs immediately execute the computation they describe, RAJALC introduced wrapper objects that enable the computations to be analyzed and transformed before execution. 
-The \verb.make_kernel. function seen at the end of Listing~\ref{MatMulTraversalOrder} creates one such kernel object.
+These templated functions execute a loop immediately, whereas the RAJALC extensions \verb.make_forall. and \verb.make_kernel. create wrapper objects that are executed through the call operator. 
+Calls to \verb.make_kernel. can be seen in lines 30 through 32 in Listing~\ref{3MMStart}. 
+While the RAJALC functions create computation objects rather than immediately executing the computation, their interfaces are the same as their base RAJA counterparts.
+
+The execution constructs separate the specification of the computation from the specification of its schedule.
+The template parameter describes the schedule of the computation as an execution policy, defined on lines 17 through 25.
+Each level of the loop has its own schedule, where \verb.omp_parallel_for_exec. indicates an OpenMP parallel loop and \verb.loop_exec. indicates the compiler should make the decision.
+Other policies exist for vectorization and GPU-offloading.
+The runtime parameters describe the computation itself. 
+The first parameter is the iteration space for the loop, defined on lines 27 and 28. 
+The second parameter is the loop body to execute for each iteration, passed as a lambda.
+The three loop bodies are defined on lines 7 through 15.
+After the computation objects are created on lines 30 through 32, they are executed through the call operator on lines 34 through 36.
 
 RAJA also provides an array wrapper class called a View.
 The View object has a number of capabilities that make it a valuable tool within RAJA codes.
@@ -259,7 +273,12 @@ Second, Views fully parameterize their underlying data formats with the Layout o
 Consider a programmer who wants to switch their data from row-major to column-major. 
 Without Views, every access to their data \verb.A[i][j]. has to be changed to \verb.A[j][i]. \textit{and} the definition of the array needs to be changed. 
 This is prohibitively expensive, especially when the programmer does not yet know the performance impact of such a decision.
-With Views however, the only change the programmer needs to make is to the View's definition: The layout permutation changes from $(0,1)$ to $(1,0)$.
+With Views however, the only change the programmer needs to make is to the View's definition: the layout permutation changes from $(0,1)$ to $(1,0)$. 
+In Listing~\ref{3MMStart}, \verb.A. is defined with the normal $(0,1)$ layout, but \verb.B. is defined with the $(1,0)$ layout. 
+Note that the change in \verb.B.'s layout does not change how it is used in the computation. 
+
+
+
 
 \section{User Specification of Data Format}
 
@@ -573,9 +592,16 @@ trmm        & Yes
 
 \section{Related Work}
 
+Wolf and Lam~\cite{wolf1991data} develop a schedule-based algorithm for improving data locality. 
+Implemented in the SUIF compiler, they use a combination of interchange, skewing, reversal, and tiling to minimize the reuse distance of the computation's data. 
+Their approach does not change the order of data in memory, just the schedule of the loops accessing that data.
+McKinley, Carr, and Tseng~\cite{mckinley1996improving} offer a similar approach based on schedule transformations, incorporating loop fusion as well.
+
 Kennedy and Kremer~\cite{kennedy1995automatic} developed an approach for automatically selecting data layouts for distributed arrays within High Performance Fortran (HPF). 
 The high level optimization framework is similar to ours: breaking the program into segments, constructing a search space of layouts for each segment, estimating the cost of each layout choice, and selecting one candidate for each segment so that overall cost is minimized. 
-Because they target distributed arrays, their approach considers the alignment of arrays with each other, while our approach considers the direct striding costs of each array separately. 
+Because they target distributed arrays, their approach considers the alignment of arrays with each other \todo{confirm this, i'm not 100\% sure}, while our approach considers the direct striding costs of each array separately. 
+Furthermore, their cost estimation is performed statically~\cite{bixby1994automatic}, while ours incorporates the results of dynamic, system-specific microbenchmarking.
+
 
 Chen, Ozturk, and Kandemir~\cite{Chen2004ilp} develop a model of locality using a 0-1 ILP formulation. 
 Their decision variables indicate mappings between data elements and memory as well as scheduling choices surrounding when data elements are accessed. 
