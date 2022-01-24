@@ -441,65 +441,65 @@ For \verb.B., $(2,1)$ becomes $(1,2)$ becomes $(1,2)$.
 For \verb.C., $(0,1)$ becomes $(0,1)$, becomes $(1,2)$.
 This equivalence demonstrates how the monotonically increasing policy and layout orders are identity transformations.
 
-\begin{comment}
-\subsection{Traversal Order as a Performance Metric}
-
-\todo{Brandon, this motivation needs to come a lot earlier in the paper.}
-Our claim is that the traversal order of an access is an accurate predictive metric for the relative performance of a layout choice. 
+\subsection{Access Order as a Performance Metric}
+Our claim is that the access order of an access is an accurate predictive metric for the relative performance of a layout choice. 
 We support this claim empirically using performance data from three microbenchmarks.
 For each microbenchmark, we record the 5-run average execution time of every combination of kernel policy and data layout. 
-These execution times are then grouped by traversal order.
-If our claim is valid, then the execution times for each traversal order will cluster and the groups of execution times will not overlap.
-
+These execution times are then grouped by access order.
+If our claim is valid, then the execution times for each access order will cluster and the groups of execution times will not overlap.
 Microbenchmark 1 is an access to a 3-dimensional view in a 3-dimensional loop. 
 Microbenchmark 2 is an access to a 2-dimensional view in a 3-dimensional loop, as in a matrix multiplication.
 Microbenchmark 3 is an access to a 3-dimensional view in a 4-dimensional loop.
-
-
+\todo{Fix names of columns and labels in figures.}
 \begin{figure}
-% \includegraphics{benchmark1_boxplot.pdf}
-\caption{Execution times for 3-dimensional loop accessing 3-dimensional view, grouped by traversal order.}
-\label{TraversalBenchmark1}
+	\includegraphics[width=\columnwidth]{benchmark1_boxplot.pdf}
+	\caption{Execution times for 3-dimensional loop accessing 3-dimensional view, grouped by access order.}
+	\label{AccessBenchmark1}
 \end{figure}
 
 \begin{figure}
-	% \includegraphics{benchmark2_boxplot.pdf}
-	\caption{Execution times for 3-dimensional loop accessing 2-dimensional view, grouped by traversal order.}
-	\label{TraversalBenchmark2}
+	\includegraphics[width=\columnwidth]{benchmark2_boxplot.pdf}
+	\caption{Execution times for 3-dimensional loop accessing 2-dimensional view, grouped by access order.}
+	\label{AccessBenchmark2}
 \end{figure}
 
 \begin{figure}
-	% \includegraphics{benchmark3_boxplot.pdf}
-	\caption{Execution times for 4-dimensional loop accessing 3-dimensional view, grouped by traversal order.}
-	\label{TraversalBenchmark3}
+	\includegraphics[width=\columnwidth]{benchmark3_boxplot.pdf}
+	\caption{Execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order.}
+	\label{AccessBenchmark3}
 \end{figure}
 
-Figure~\ref{TraversalBenchmark1} shows the execution times for the different traversal orders for microbenchmark 1. 
-With the exception of traversal order $(2,1,0)$, the traversal orders show good clustering.
+\begin{comment}
+
+
+
+
+Figure~\ref{accessBenchmark1} shows the execution times for the different access orders for microbenchmark 1. 
+With the exception of access order $(2,1,0)$, the access orders show good clustering.
 \todo{explanation for why the $(2,1,0)$ ones don't cluster as much}
-Also, the six possible traversal orders show good differentiation, with the exception of $(0,1,2)$ and $(1,0,2)$. 
+Also, the six possible access orders show good differentiation, with the exception of $(0,1,2)$ and $(1,0,2)$. 
 This is likely because the bulk of the performance improvement comes from the innermost loop in a nest traversing the stride 1 dimension of the data.
 
 
 \todo{Brandon, I am not seeing these figures right now.  Have they not been included into the repository yet?}
-Figure~\ref{TraversalBenchmark2} shows the execution times for the different traversal orders for microbenchmark 2. 
-While the traversal orders for this microbenchmark are all highly clustered, they are less differentiated from one another. 
+Figure~\ref{accessBenchmark2} shows the execution times for the different access orders for microbenchmark 2. 
+While the access orders for this microbenchmark are all highly clustered, they are less differentiated from one another. 
 For example, we see that the orders $(0,2)$ and $(1,2)$ have similar performance, as do $(2,0)$ and $(2,1)$. 
 The similarity in performance is again attributable to the influence of the position of the innermost loop iterator. 
 
 
 
-Figure~\ref{TraversalBenchmark3} shows the execution times for the different traversal orders for microbenchmark 3. 
+Figure~\ref{accessBenchmark3} shows the execution times for the different access orders for microbenchmark 3. 
 A similar pattern as the previous microbenchmarks emerges here: grouping based on the position of the innermost iterator. 
 
-The major benefit of using traversal order as a performance metric is its reusability. 
+The major benefit of using access order as a performance metric is its reusability. 
 Because it condenses the policy, the layout, and the arguments used in the access into a single metric, the same benchmarking results can be used to estimate the cost of all three accesses within a matrix multiplication. 
-Similarly, the benchmarking results for traversal orders gathered for one computation can be reused when modeling another computation.
+Similarly, the benchmarking results for access orders gathered for one computation can be reused when modeling another computation.
 
 \section{A Performance Model for Data Format}
 \todo{Brandon, this is one of the key contributions of this paper and it is buried right now.}
 
-\todo{explain how we use the traversal order information to build up a model and choose layouts and generate the computation}
+\todo{explain how we use the access order information to build up a model and choose layouts and generate the computation}
 
 \end{comment}
 \section{Evaluation}
