@@ -141,7 +141,7 @@ As the graph shows, there is significant performance improvement ($1.51\times$ s
 	\label{IntroExample}
 \end{figure}
 
-\todo{Create RUNNING EXAMPLE. I think the simpler example in figure 1 is better for the points its trying to make, but we need a running example for using our interface. I think this will separate out the claims that there is performance gains to be had from the claims that our method gives those performance gains. }
+
 % \todo{Brandon, also we need to figure out how parallelism is related to this work, if at all.  It seems like the
 % data layouts are important because of the sequential array access order.  The below introduction does NOT
 % bring in parallelism yet due to my lack of understanding on this point.}
@@ -242,13 +242,12 @@ This paper includes the following contributions:
 	\end{lstlisting}
 \end{figure}
 
-\todo{Introduce RAJA and RAJALC. kernel objects, symbolic evaluation, delay between specification and execution.}
 
 We use a variety of components of RAJA to enable automatic data format transformations, as well as features of the loop chain extension RAJALC~\todo{cite}. 
 This section reviews how a computation is described in RAJA, working with the implementation of the 3MM kernel found in Listing~\ref{3MMStart}.
 
 The foundational elements of RAJA are the execution constructs, \verb.forall. and \verb.kernel.. 
-These templated functions execute a loop immediately, whereas the RAJALC extensions \verb.make_forall. and \verb.make_kernel. create wrapper objects that are executed through the call operator. 
+These templated functions execute a loop immediately, whereas the RAJALC \verb.make_forall. and \verb.make_kernel. extensions create wrapper objects that are executed through the call operator. 
 Calls to \verb.make_kernel. can be seen in lines 30 through 32 in Listing~\ref{3MMStart}. 
 While the RAJALC functions create computation objects rather than immediately executing the computation, their interfaces are the same as their base RAJA counterparts.
 
