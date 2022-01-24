@@ -207,7 +207,7 @@ This paper includes the following contributions:
 	auto layout_10 = make_permuted_layout(sizes, {{1,0}});
 	View2D A(A_data, layout_01);
 	View2D B(B_data, layout_10);
-	//initializations proceed similarly for C-G
+	//initializations proceed similarly for C-G with layout_01
 
 	auto loop_body1 = [&](auto i0, auto i1, auto i2) {
 		E(i0, i1) += A(i0,i2) * B(i2,i1);
@@ -283,7 +283,10 @@ Note that the change in \verb.B.'s layout does not change how it is used in the 
 \section{User Specification of Data Format}
 
 Throughout a computation, different parts of the computation access data in different orders.
-For example, \todo{explain 3MM or something}.
+For example, consider the Views \verb.A., \verb.B., and \verb.D. in Listing~\ref{3MMStart}. 
+The order in which \verb.A. is accessed is different from \verb.D. because the argument order in their accesses are different.
+In contrast, while \verb.B. and \verb.D. have the same argument order, their access order is still different because they have different layouts.
+Looking at the two references to \verb.F. in kernels two and three, we can see that even access order to the same data can change through a computation.
 Because different formats are optimal for different kernels, this creates an opportunity for optimization. 
 
 However, RAJA's built-in support for changing data layouts is minimal. 
@@ -292,7 +295,7 @@ This is because changing layouts also requires reordering the underlying data to
 To implement such a layout change by hand requires the programmer to allocate a new temporary array, 
 copy the data from the View to the temporary array in the right order, 
 copy the data \textit{back} to the memory in the View, 
-and then finally update the View's layout object
+and then finally update the View's layout object.
 
 This work removes that barrier by expanding the declarative data optimization system begun by RAJALC.
 While RAJALC tackled the problem of scheduling optimizations, we target making data format changes between computations. 
@@ -359,106 +362,86 @@ The next section discusses how we reduce the amount of microprofiling necessary 
 
 \section{Cost Estimation}
 
-In this section, we describe how RAJALC estimates the cost of a particular layout choice and how cost estimates are reused for multiple decision variables.
-This is achieved using an access' simplified traversal order.
+Because our system uses microbenchmarking to estimate the cost of different layouts, the overhead can meaningfully impact overall performance. 
+To mitigate this effect, we reuse the microbenchmarking results as much as possible. 
+To maximize reuse, we model choices based on their access order, which describes the order in which iterations access data in memory.
+By using the access order instead of the full description of the access, references to different Views can be modeled with the same estimates, even if they have different argument or policy orders.
+We argue that the access order is an accurate predictive metric for the relative performance of a layout choice. 
 
 \subsection{Identifying an Access}
-The access pattern of any View access is identified by the access argument order, the kernel policy order, and the layout order. 
+\begin{figure}
+	\begin{lstlisting}[caption={Two implementations of matrix multiplication using different kernel policies.},
+		label={MatMulTraversalOrder}]
+		auto a_layout = make_permuted_layout(a_sizes, {{0,1}});
+		auto b_layout = make_permuted_layout(b_sizes, {{1,0}});
+		auto c_layout = make_permuted_layout(c_sizes, {{0,1}});
 
-The access argument order describes the order of the loop iterators in the access with respect to the parameters of the lambda. In Listing~\ref{MatMulTraversalOrder}, the accesses to \verb.A., \verb.B., and \verb.C. have access argument orders $(0,2)$, $(2,1)$, and $(0,1)$, respectively. 
+		View2D A(a_data, a_layout);
+		View2D B(b_data, b_layout);
+		View2D C(c_data, c_layout);
 
+		auto matmul_lambda = [&](auto i0, auto i1, auto i2) {
+			C(i0,i1) += A(i0,i2) * B(i2,i1);
+		}
+		auto segs = make_tuple(RangeSegment(0,iN), 
+			RangeSegment(0,jN), 
+			RangeSegment(0,kN));
+		using Policy_012 = KernelPolicy<
+			statement::For<0,loop_exec,
+				statement::For<1,loop_exec,
+					statement::For<2,loop_exec,
+						statement::Lambda<0>
+					>
+				>
+			>
+		>;
 
+		using Policy_201 = KernelPolicy<
+			statement::For<2,loop_exec,
+				statement::For<0,loop_exec,
+					statement::For<1,loop_exec,
+						statement::Lambda<0>
+					>
+				>
+			>
+		>;
+
+		auto knl1 = make_kernel<Policy_012>(segs, matmul_lambda);
+		auto knl2 = make_kernel<Policy_201>(segs, matmul_lambda);
+
+		knl1();
+		knl2();
+	\end{lstlisting}
+\end{figure}
+The access pattern of any View reference is identified by its access order, which is in turn defined by its argument order, the kernel policy order, and the layout order. 
+The argument order describes the order of the loop iterators in the reference with respect to the parameters of the lambda. 
+In Listing~\ref{MatMulTraversalOrder}, the references to \verb.A., \verb.B., and \verb.C. have argument orders $(0,2)$, $(2,1)$, and $(0,1)$, respectively. 
 The kernel policy order describes the order in which the iterators are increased. 
 This is equivalent to the nesting order of a loop.
-In Listing~\ref{MatMulTraversalOrder}, accesses made by \verb.knl1. have policy order $(0,1,2)$, while those mady by \verb.knl2. have policy order $(2,0,1)$.
-\todo{Brandon, here I am guessing it isn't the policy name but the For loop nesting order in the KernelPolicy?}
-
+In Listing~\ref{MatMulTraversalOrder}, references made by \verb.knl1. have policy order $(0,1,2)$, while those mady by \verb.knl2. have policy order $(2,0,1)$.
+The indices of the \verb.For. statements within the policy determine this order.
 The layout order describes the layout of data in memory. 
 In Listing~\ref{MatMulTraversalOrder}, \verb.A. has layout order $(0,1)$, \verb.B. has $(1,0)$, and \verb.C. has $(0,1)$.
-\todo{Brandon, how are layout\_01, etc. defined?}
+While each access has a layout order defined by the original layout of the data, during our modeling phase, different layout orders are estimated to see which is most effective for the particular kernel. 
 
-For an $n$-dimensional kernel and a $d$-dimensional View, there are $n! * d! * n^d$ different combinations of policy, layout order, and access argument. 
-\todo{Brandon, walk through this with the example in Listing 2.  Go ahead and list all of the possibilities.}
+The access order describes the order in which the iterations of a kernel access the data in memory.
+For example, an access order of $(0,2)$ indicates that the stride-one dimension of the data is traversed by the innermost (depth 2) loop and the larger stride dimension is traversed by the outermost (depth 0) loop. 
+Similarly, an order of $(2,1)$ indicates the stride-one dimension is traversed by the middle (depth 1) loop while the larger stride dimension is traversed by the innermost (depth 2) loop.
 
-However, many of these accesses have similar, if not identical data access behavior. 
-Thus, we can greatly reduce the number of possible accesses that may need cost estimation. 
-\todo{Brandon, then for this new paragraph about reducing accesses, show some of the ones from
-this list you made in the last paragraph that are going to have the same performance.}
+Calculating the access order of a View reference starts with the argument order.
+Then, we permute the argument order based on the layout order. 
+Finally, we reorder the result based on the policy order.
+Using the reference to \verb.B. in \verb.knl2. as an example, we start with the argument order $(2,1)$.
+The layout order of \verb.B. is $(1,0)$, so our intermediate result is $(1,2)$. 
+The policy order of \verb.knl2. is $(2,0,1)$, so our final result is $(2,0)$. 
+This indicates that in \verb.knl2., the outermost loop is indexing the stride-one dimension while the innermost loop is indexing the larger stride dimension.
 
+Using the access order rather than the full description of the reference, we see that the reference to \verb.B. in \verb.knl1. will have similar performance impact to the reference to \verb.C. in \verb.knl2.
+For \verb.B., $(2,1)$ becomes $(1,2)$ becomes $(1,2)$. 
+For \verb.C., $(0,1)$ becomes $(0,1)$, becomes $(1,2)$.
+This equivalence demonstrates how the monotonically increasing policy and layout orders are identity transformations.
 
-\subsection{Traversal Order}
-
-%Because kernel policies and access arguments are defined at compile\todo{i want to say "code writing" time here} time while layouts are mutable at runtime, we want to model all accesses as different layout choices for a single pre-selected choice of kernel policy and argument order.
-The programmer decides the kernel policies and access arguments.
-The piece we automate here is deciding what the data layout of the various arrays accessed by
-the kernels should be at various points in the loop chain.
-To do this we want to model the cost of all of the data accesses for different layout choices
-given a pre-selected kernel policy and access argument order.
-\todo{The reader is a bit lost at this point.  We need to give them the bigger picture earlier.}
-
-
-
-\subsection{Simplified Traversal Order}
-
-\todo{I would rather this come later after the main idea of how you are doing the modeling is presented.}
-
-\subsection{Empirical Verification}
-
-\todo{Are you verifying the reduction in microbenchmarks needed or verifying the objective function period?}
-Our first reduction comes from the coupling between the access arguments and the loop iterators. We can normalize the access argument order by transforming the policy order. Using this reduction, we only need to model accesses that use the iterators in order. Listing~\ref{reduction1} shows two accesses that have the same access behavior. 
-
-\begin{figure}
-	\begin{lstlisting}[caption={Equivalent loops for first reduction process.}, label={reduction1}]
-kernel<POLICY_01>(... [](auto i0, auto i1) {
-		a(i1,i0)
-});
-
-kernel<POLICY_10>(... [](auto i0, auto i1) {
-		a(i0,i1)
-});
-	\end{lstlisting}
-\end{figure}
-
-The second reduction comes from the similarity between 
-\begin{figure}
-	\begin{lstlisting}[caption={Equivalent loops for second reduction process.}, label={reduction2}]
-kernel<POLICY_012>(... [](auto i0, auto i1, auto i2) {
-		a(i0,i2)
-});
-
-kernel<POLICY_01>(... [](auto i0, auto i1) {
-		a(i0,i1)
-});
-	\end{lstlisting}
-\end{figure}
-
-
-\subsection{Deriving the Traversal Order}
-
-\todo{Brandon, who is deriving the traversal order?  Symbolic execution?}
-Given an $n$-dimensional kernel that accesses a $d$-dimensional view, there are $n! * d!$ different possible combinations of kernel policy and data layout. 
-Estimating the cost of all of these choices separately for each access in a computation is prohibitively expensive, especially using any sort of dynamic benchmarking. 
-However, the traversal order of an access compresses the kernel policy and data layout into a single reusable feature that accurately predicts relative performance.
-
-
-
-
-Listing~\ref{MatMulTraversalOrder} shows two implementations of a matrix multiplication using different kernel policies and involving views using different data layouts.
-Deriving the traversal order for an access requires the extraction of three values: the policy order, the layout order, and the argument order. 
-For the access to \verb.C. in \verb.knl1., the policy order is $(0,1,2)$, the layout order is $(0,1)$, and the argument order is $(0,1)$. 
-In contrast, for the access to \verb.B. in \verb.knl2., the policy order is $(2,0,1)$, the layout order is $(1,0)$, and the argument order is $(2,1)$. 
-
-With these values in hand, we can derive the traversal order, using the access to \verb.B. in \verb.knl2. as a running example. 
-We start with the argument order $(2,1)$.
-The first step is to normalize the policy order.
-This step gives us the answer to the question: \enquote{What access has the same traversal order when the policy order is monotonically increasing (the normal policy order)?}
-This is calculated using the following: \verb,[policy_order.indexof(arg) for arg in arg_order],. 
-The index of $2$ in the policy is $0$, and the index of $1$ in the policy is $2$, so our intermediate value is $(0,2)$. 
-
-The second step is to permute this intermediate value based on the data layout. 
-We apply the layout permutation $(1,0)$ to our intermediate value $(0,2)$ to get our traversal order $(2,0)$. 
-This traversal order tells us that in the access to \verb.B. in \verb.knl2., the dimension of \verb.B. with the largest stride is traversed by the iterator at nesting depth 2 (the innermost iterator) and the dimension of \verb.B. with the smallest stride is traversed by the iterator at nesting depth 0 (the outermost iterator). 
-
+\begin{comment}
 \subsection{Traversal Order as a Performance Metric}
 
 \todo{Brandon, this motivation needs to come a lot earlier in the paper.}
@@ -518,6 +501,7 @@ Similarly, the benchmarking results for traversal orders gathered for one comput
 
 \todo{explain how we use the traversal order information to build up a model and choose layouts and generate the computation}
 
+\end{comment}
 \section{Evaluation}
 
 \todo{Where we evaluated}
