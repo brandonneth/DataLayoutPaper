@@ -1,7 +1,7 @@
 \pdfoptionpdfminorversion=7
 \documentclass[sigconf, table]{acmart}
 
-
+\usepackage{array}
 \usepackage{comment}
 \usepackage{graphicx}
 \usepackage{csquotes}
@@ -523,11 +523,41 @@ Polybench contains 30 numerical computations in total.
 Of those 30, 13 have good traversal orders for all multi-dimensional accesses, one uses only 1D data, and one uses external functions that inhibit RAJALC's symbolic evaluation.
 This leaves 15 benchmarks to evaluate.
 
-We evaluated the performance of three variants of the benchmarks.
-The first variant, \verb.RAJA_OpenMP., is the original RAJA implementation of the kernel.
-The second variant, \verb.Hand_Layout., implements the layout changes by hand.
-The third variant, \verb.Auto_Layout., implements the layout changes using our contribution.
+We evaluated the performance of four variants of the benchmarks.
+Table~\ref{VariantDescription} describes them in more detail.
 
+
+
+\begin{table}
+	%\centering
+	\begin{tabular}{ p{2.5cm} | p{4cm}  }
+		Variant Name & Variant Description \\
+		\hline
+		\verb.RAJA_OpenMP.  & original RAJA implementation.\\
+		\verb.RAJALC. 		& RAJA\_OpenMP modified to use RAJALC kernel objects. \\
+		\verb.Hand_Layout. & \verb.RAJALC. with hand-tuned layout changes implemented by hand.\\
+		\verb.Format_Decision. & \verb.RAJALC. with hand-tuned layout changes implemented using a FormatDecisions object \\
+		\verb.Model_Choice. & \verb.RAJALC. with FormatDecisions model-selected layout changes.
+	\end{tabular}
+\end{table}
+
+The first variant, \verb.RAJA_OpenMP., is the original RAJA implementation of the kernel.
+The second variant, \verb.RAJA_OpenMP., is the original RAJA implementation of the kernel.
+The third variant, \verb.Hand_Layout., implements the layout changes by hand.
+The  variant, \verb.Auto_Layout., implements the layout changes using our contribution.
+
+\begin{table}
+	\centering
+	\begin{tabular}{ p{2.3cm} | p{1.15cm} | p{1.1cm} | p{1.2cm} | p{1.9cm}}
+		Variant \linebreak Name & Kernel Objects? & Layout Changes? & Who \linebreak Selected? & Who \linebreak Implemented? \\
+		\hline
+		\verb.RAJA_OpenMP. & No & No & - & - \\
+		\verb.RAJALC. & Yes & No & - & - \\
+		\verb.Hand_Layout. & Yes & Yes & User & User \\
+		\verb.Format_Decision. & Yes & Yes & User & Tool \\
+		\verb.Model_Choice. & Yes & Yes & Tool & Tool
+	\end{tabular}
+\end{table}
 
 
 \todo{This table is temporary.}
