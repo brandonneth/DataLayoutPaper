@@ -8,3 +8,4 @@
 [submodule "Kripke"]
 	path = Kripke
 	url = https://github.com/brandonneth/Kripke.git
+	branch = autolayout
