@@ -48,7 +48,7 @@ escapeinside={<@}{@>}
 
 \usepackage[subtle]{savetrees}
 
-\title{Something about data layouts}
+\title{Data Layout Optimization in RAJA}
 
 
 % \author{Brandon Neth}
@@ -104,11 +104,11 @@ Thus, a developer can try out different layouts without major refactoring costs.
 However, some applications benefit from changing the data layout mid-computation to facilitate better locality.
 Implementing such a mid-computation layout change in RAJA can improve performance, but is laborious to implement and lacks portability.
 This work remedies RAJA's shortcoming by introducing a lightweight, declarative API for changing data layouts between computations.
-Also, we present an automated layout decider that selects optimal layouts based on performance estimations. 
+Also, we present an automated layout decider that selects performant layouts based on dynamic performance estimations. 
 These systems work together, meaning the decider \enquote{fills in} layout choices not made by the user.
 This allows the user to specify as much or as little of the layout information as they please and still obtain the performance benefits of changing data layouts.  
 Further, our system is built directly into the RAJA library, meaning that no additional build steps are required.
-We evaluate our system on \todo{what}, where it achieves \todo{what}.
+We evaluate our system on four benchmarks, where it achieves similar performance improvements to hand-implemented optimizations.
 \end{abstract}
 
 
