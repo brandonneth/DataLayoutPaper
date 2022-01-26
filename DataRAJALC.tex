@@ -133,12 +133,13 @@ Figure~\ref{IntroExample} shows how important good data layout is.
 The BadLayout column shows the execution time for a matrix multiplication where the three arrays are laid out opposite of their access order. 
 The GoodLayout column shows the execution time for the same matrix multiplication when the arrays are laid out to match their access order.
 Finally, the LayoutChange column shows the execution time of code that changes the layout from the bad layout to the good one.
-As the graph shows, there is significant performance improvement ($1.51\times$ speedup) simply by changing the data layout, and the cost of performing the layout change is negligible ($1.47\times$ speedup when including conversion time). 
+As the graph shows, there is significant performance improvement ($1.49\times$ speedup) simply by changing the data layout, and the cost of performing the layout change is small ($1.42\times$ speedup when including conversion time). 
 
 \begin{figure}
 	\includegraphics[width=0.7\columnwidth]{ScoreValidity/IntroExampleGraph.pdf}
 	\caption{Execution time for matrix multiplication using optimal and non-optimal data layouts and execution time for converting from non-optimal to optimal.}
 	\label{IntroExample}
+	\Description[Matrix Multiplication Execution Time for Different Layouts]{A bar plot showing a "Bad Layout" column with execution time greater than the "Good Layout" and "Layout Conversion" columns combined.}
 \end{figure}
 
 
@@ -207,7 +208,7 @@ This paper includes the following contributions:
 	auto layout_10 = make_permuted_layout(sizes, {{1,0}});
 	View2D A(A_data, layout_01);
 	View2D B(B_data, layout_10);
-	//initializations proceed similarly for C-G with layout_01
+	... initializations proceed similarly for C-G with layout_01
 
 	auto loop_body1 = [&](auto i0, auto i1, auto i2) {
 		E(i0, i1) += A(i0,i2) * B(i2,i1);
@@ -330,7 +331,6 @@ decisions.set_format_after(F, {{1,0}}, knl2);
 auto computation = decisions.finalize();
 computation();
 \end{lstlisting}
-
 \end{figure}
 
 \section{Performance Modeling}
@@ -445,8 +445,7 @@ This equivalence demonstrates how the monotonically increasing policy and layout
 \subsection{Access Order as a Performance Metric}
 Our claim is that the access order of an access is an accurate predictive metric for the relative performance of a layout choice. 
 We support this claim empirically using performance data from three microbenchmarks.
-For each microbenchmark, we record the 5-run average execution time of all combinations of policy and layout order for a fixed argument order. 
-\todo{I need to justify this choice better. Right now its bc it'd be hard to implement all the possibilities. And bc the interesting argument orders are undone by a layout change.}
+For each microbenchmark, we record the 5-run average execution time of all combinations of policy, layout, and argument order. 
 These execution times are then grouped by access order.
 If our claim is valid, then the execution times for each access order will cluster and the groups of execution times will not overlap.
 Microbenchmark 1 is an access to a 3-dimensional view in a 3-dimensional loop. 
@@ -457,6 +456,7 @@ Microbenchmark 3 is an access to a 3-dimensional view in a 4-dimensional loop.
 	\includegraphics[width=\columnwidth]{benchmark1_boxplot.pdf}
 	\caption{Execution times for 3-dimensional loop accessing 3-dimensional view, grouped by access order.}
 	\label{AccessBenchmark1}
+	\Description[Access Order Execution Times for Microbenchmark 1]{Fully described in the text.}
 \end{figure}
 
 \begin{figure}
@@ -467,20 +467,22 @@ Microbenchmark 3 is an access to a 3-dimensional view in a 4-dimensional loop.
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{benchmark3_boxplot.pdf}
-	\caption{Execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order.}
+	\caption{Execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order. \todo{Right now this isn't modulating argument order.}}
 	\label{AccessBenchmark3}
 \end{figure}
 
+Figure~\ref{AccessBenchmark1} shows the execution times for the different access orders for microbenchmark 1.
+Overall, the six possible access orders show good differentiation and clustering.
+The access order $(2,0,1)$ does show two subclusters, but remain highly distinct from the other access order groupings. 
+Additionally, access orders $(0,1,2)$ and $(1,0,2)$ show some overlap, likely because the bulk of the performance improvement comes from the innermost loop in a nest traversing the stride-one dimension of the data.
+
+Figure~\ref{AccessBenchmark2} shows the execution times for the different access orders for microbenchmark 2. 
+This microbenchmark also shows good cluster and differentiation.
+Like microbenchmark 1, the access orders $(0,2)$ and $(1,2)$ have similar performance, likely for the same reason. 
+
+Figure~\ref{AccessBenchmark3} shows the execution times for the different access orders for microbenchmark 3.
+\todo{I need to finish reimplementing this one.}.
 \begin{comment}
-
-
-
-
-Figure~\ref{accessBenchmark1} shows the execution times for the different access orders for microbenchmark 1. 
-With the exception of access order $(2,1,0)$, the access orders show good clustering.
-\todo{explanation for why the $(2,1,0)$ ones don't cluster as much}
-Also, the six possible access orders show good differentiation, with the exception of $(0,1,2)$ and $(1,0,2)$. 
-This is likely because the bulk of the performance improvement comes from the innermost loop in a nest traversing the stride 1 dimension of the data.
 
 
 \todo{Brandon, I am not seeing these figures right now.  Have they not been included into the repository yet?}
@@ -497,11 +499,6 @@ A similar pattern as the previous microbenchmarks emerges here: grouping based o
 The major benefit of using access order as a performance metric is its reusability. 
 Because it condenses the policy, the layout, and the arguments used in the access into a single metric, the same benchmarking results can be used to estimate the cost of all three accesses within a matrix multiplication. 
 Similarly, the benchmarking results for access orders gathered for one computation can be reused when modeling another computation.
-
-\section{A Performance Model for Data Format}
-\todo{Brandon, this is one of the key contributions of this paper and it is buried right now.}
-
-\todo{explain how we use the access order information to build up a model and choose layouts and generate the computation}
 
 \end{comment}
 \section{Evaluation}
