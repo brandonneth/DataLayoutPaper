@@ -240,6 +240,7 @@ This paper includes the following contributions:
 	knl2();
 	knl3();
 	\end{lstlisting}
+	\Description[RAJA Implementation of 3MM]{Fully described in the text.}
 \end{figure}
 
 
@@ -329,11 +330,12 @@ decisions.set_format_after(F, {{1,0}}, knl2);
 auto computation = decisions.finalize();
 computation();
 \end{lstlisting}
+
 \end{figure}
 
 \section{Performance Modeling}
 
-In addition to the format changes registered by the user, \verb.FormatDecisions. also uses a performance model to determine if additional format changes will improve performance. 
+In addition to the format changes registered by the user, the new \verb.FormatDecisions. also uses a performance model to determine if additional format changes will improve performance. 
 This capability means that even without any registered format choices, \verb.FormatDecisions. often selects the same changes the user would themselves choose. 
 We encode the problem as an integer linear program where the solution represents our model's pick for the optimal layouts.
 
@@ -443,7 +445,8 @@ This equivalence demonstrates how the monotonically increasing policy and layout
 \subsection{Access Order as a Performance Metric}
 Our claim is that the access order of an access is an accurate predictive metric for the relative performance of a layout choice. 
 We support this claim empirically using performance data from three microbenchmarks.
-For each microbenchmark, we record the 5-run average execution time of every combination of kernel policy and data layout. 
+For each microbenchmark, we record the 5-run average execution time of all combinations of policy and layout order for a fixed argument order. 
+\todo{I need to justify this choice better. Right now its bc it'd be hard to implement all the possibilities. And bc the interesting argument orders are undone by a layout change.}
 These execution times are then grouped by access order.
 If our claim is valid, then the execution times for each access order will cluster and the groups of execution times will not overlap.
 Microbenchmark 1 is an access to a 3-dimensional view in a 3-dimensional loop. 
@@ -518,85 +521,83 @@ Third, we measure the accuracy of our model on its own by determining the rank o
 
 \subsection{Case Study 1: Polybench}
 
-Our first evaluation targeted the kernels within the Polybench suite. 
-Polybench contains 30 numerical computations in total. 
-Of those 30, 13 have good traversal orders for all multi-dimensional accesses, one uses only 1D data, and one uses external functions that inhibit RAJALC's symbolic evaluation.
-This leaves 15 benchmarks to evaluate.
-
-We evaluated the performance of four variants of the benchmarks.
+Our first evaluation targeted select benchmarks from the polybench suite: 2mm, 3mm, gemver, and mvt.
+For each benchmark, we implemented five variants.
+\verb.RAJA_OpenMP. is the original RAJA implementation.
+\verb.RAJALC. modifies \verb.RAJA_OpenMP. to use RAJALC kernel objects.
+\verb.Hand_Layout., \verb.Format_Decision., and \verb.Model_Choice. all augment the \verb.RAJALC. variant to include format changes.
 Table~\ref{VariantDescription} describes them in more detail.
-
-
-
-\begin{table}
-	%\centering
-	\begin{tabular}{ p{2.5cm} | p{4cm}  }
-		Variant Name & Variant Description \\
-		\hline
-		\verb.RAJA_OpenMP.  & original RAJA implementation.\\
-		\verb.RAJALC. 		& RAJA\_OpenMP modified to use RAJALC kernel objects. \\
-		\verb.Hand_Layout. & \verb.RAJALC. with hand-tuned layout changes implemented by hand.\\
-		\verb.Format_Decision. & \verb.RAJALC. with hand-tuned layout changes implemented using a FormatDecisions object \\
-		\verb.Model_Choice. & \verb.RAJALC. with FormatDecisions model-selected layout changes.
-	\end{tabular}
-\end{table}
-
-The first variant, \verb.RAJA_OpenMP., is the original RAJA implementation of the kernel.
-The second variant, \verb.RAJA_OpenMP., is the original RAJA implementation of the kernel.
-The third variant, \verb.Hand_Layout., implements the layout changes by hand.
-The  variant, \verb.Auto_Layout., implements the layout changes using our contribution.
 
 \begin{table}
 	\centering
-	\begin{tabular}{ p{2.3cm} | p{1.15cm} | p{1.1cm} | p{1.2cm} | p{1.9cm}}
-		Variant \linebreak Name & Kernel Objects? & Layout Changes? & Who \linebreak Selected? & Who \linebreak Implemented? \\
+	\begin{tabular}{ p{2.4cm} | p{1.1cm} | p{1.1cm} | p{1cm} | p{1cm}}
+		Variant \linebreak Name & Kernel Objects & Layout Changes & Chosen \linebreak By & Written \linebreak Using \\
 		\hline
 		\verb.RAJA_OpenMP. & No & No & - & - \\
 		\verb.RAJALC. & Yes & No & - & - \\
-		\verb.Hand_Layout. & Yes & Yes & User & User \\
-		\verb.Format_Decision. & Yes & Yes & User & Tool \\
-		\verb.Model_Choice. & Yes & Yes & Tool & Tool
+		\verb.Hand_Layout. & Yes & Yes & User & No API \\
+		\verb.Format_Decision. & Yes & Yes & User & API \\
+		\verb.Model_Choice. & Yes & Yes & Model & API
+	\end{tabular}
+	\caption{Polybench variant descriptions.}
+	\label{VariantDescription}
+\end{table}
+
+
+
+
+\begin{table}
+	\centering
+	\begin{tabular}{c|c|c}
+		Kernel & Variant & Layout Changes \\
+		2MM & \verb.Hand_Layout. & Bview and Cview \\
+		3MM & \verb.Hand_Layout. & Bview, Dview, Fview (2x) \\
+		GEMVER & \verb.Hand_Layout. & None \\
+		MVT & \verb.Hand_Layout. & None 
 	\end{tabular}
 \end{table}
+
 
 
 \todo{This table is temporary.}
 \begin{figure*}
-\begin{tabular}{ll}
-Benchmark   & Inclusion \\
-2mm         & Yes          \\
-3mm         & Yes          \\
-adi         & Yes          \\
+\begin{tabular}{lll}
+Benchmark   & Inclusion  & Implementation Status?\\
+2mm         & Yes        &  \verb.RAJA_OpenMP., \verb.RAJALC., \verb.Hand_Layout.\\
+3mm         & Yes        &  \verb.RAJA_OpenMP., \verb.RAJALC., \verb.Hand_Layout.\\
+adi         & No, negative iterator increments       \\
 atax        & No, accesses to A are in-order.          \\
 bicg        & No, accesses to A are in-order.          \\
 cholesky    & No, accesses to A are in-order.          \\
-correlation & Yes          \\
-covariance  & Yes          \\
+correlation & No, segs are in terms of other segs         \\
+covariance  & No, segs are in terms of other segs          \\
 deriche     & No, accesses to all multi-dimensional data are in-order.          \\
-doitgen     & Yes          \\
+doitgen     & no, imperfect nesting        \\
 durbin      & No, all 1D data.          \\
 fdtd-2d     & No, accesses to all multi-dimensional data are in-order.           \\
 floyd-warshall & No, accesses are in order \\
 gemm        &  No, accesses are all in order         \\
-gemver      & Yes          \\
+gemver      & Yes        & \verb.RAJA_OpenMP. \verb.RAJALC. \verb.Hand_Layout. \\
 gesummv     & No, accesses are all in order          \\
-gramschmidt & Yes          \\
+gramschmidt & No, imperfect nesting          \\
 heat-3d     & No, accesses are all in order            \\
 jacobi-1D   & No, accesses are all in order           \\
 jacobi-2D   & No, accesses are all in order           \\
-lu          & Yes         \\
-ludcmp      & Yes          \\
-mvt         & Yes          \\
+lu          & No, segs are in terms of other segs         \\
+ludcmp      & No, segs are in terms of other segs \\
+mvt         & Yes        & \verb.RAJA_OpenMP. \verb.RAJALC. \verb.Hand_Layout.\\
 nussinov    & No, too much control flow and function calls          \\
 seidel      & No, accesses are all in order           \\
-symm        & Yes          \\
-syr2k       & Yes          \\
-syrk        & Yes          \\
+symm        & No, imperfect nesting           \\
+syr2k       & No, segs are in terms of other segs         \\
+syrk        & No, segs are in terms of other segs        \\
 trisolv     & No, accesses are all in order           \\
-trmm        & Yes         
+trmm        & No, segs are in terms of other segs         
 \end{tabular}
-\caption{Polybench benchmarks}
+\caption{Polybench benchmarks inclusion and implementation status.}
 \end{figure*}
+
+
 
 
 \subsection{Case Study 2: miniWeather}
