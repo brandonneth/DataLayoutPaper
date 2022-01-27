@@ -125,10 +125,12 @@ Although mechanisms such as compiler optimizations (loop permutation/interchange
 and data layout policies like those in Kokkos \cite{edwards2014kokkos} and RAJA \cite{hornung2014RAJA} have the potential to align data layout with computation schedules, they become difficult to automate and laborious to manage by-hand as the number of loops and arrays grow.
 \todo{Probably a good idea to refer to existing solutions to this problem as my familiarity with the literature grows}
 
-Thus, in this paper, we present an approach for exposing data layout decisions to the programmer in the C++ performance portability library RAJA.
-Our API allows the programmer to specify as many data layout decisions in a sequence of data-sharing loops (otherwise known as a loop chain~\cite{krieger2013loop}) as they choose.
+In this paper, we present an approach for exposing data layout decisions to the programmer in the C++ performance portability library RAJA.
+% FIXME: might want to say "C++ portable parallel library RAJA", parallelism is a key goal for RAJA
+The presented API allows the programmer to specify as many data layout decisions in a sequence of data-sharing loops (otherwise known as a loop chain~\cite{krieger2013loop}) as they choose.
 Then, using a portable cost model based on microbenchmarking, our system identifies any remaining layout changes that will improve performance.  
 
+% HAPPY: I really like this concrete example for motivating the performance benefit.
 Figure~\ref{IntroExample} shows how important good data layout is. 
 The BadLayout column shows the execution time for a matrix multiplication where the three arrays are laid out opposite of their access order. 
 The GoodLayout column shows the execution time for the same matrix multiplication when the arrays are laid out to match their access order.
@@ -166,6 +168,15 @@ C/C++ languages, (2) do not generally expose fine-grained data layout or loop op
 controls to users, and (3) typically do not optimize across multiple loops well.
 \todo{Michelle: My understanding is that also you can't optimize two accesses at once with this method, bc changes to optimize one may un-optimize the other. Is this worth mentioning as well?}
 \todo{We should have citations for these limitations probably}
+% DATA: I thought of "Pointer Analysis: Haven't We Solved This Problem Yet?" from 2001, but there
+% are probably more recent papers talking about how difficult precise pointer and alias analysis is
+% for C/C++ programs.  I recommend searching for that one.
+% For lack of fine-grained controls could you say something like "thus the proposals to potentially
+% add loop transformation specs to pragmas in OpenMP and cite the Michael Kruse paper that
+% was in the same IWOMP as one of our loop chain transformation papers (Ian's or yours, don't remember).
+% It seems like the problem of not optimizing across multiple loops was a key part of the big picture
+% problem in many of those papers we looked at in the 620 class.  An email I sent on Aug 3, 2020
+% has some notes on potential related work.
 
 Data layout policies provided in libraries like Kokkos or RAJA
 and programming languages like Chapel~\cite{diaconescu2007approach} give
@@ -173,7 +184,10 @@ programmers control over the data layout of multi-dimensional arrays, but do not
 provide assistance for switching between data layouts between computations \todo{confirm for Kokkos}
 nor help with selecting the most effective data layout strategy for a sequence of computations.
 
-\todo{this paragraph seems to echo the above. I'm going to try to make it address the limitations better. Or change the flow.}
+\todo{this paragraph seems to echo the above. I'm going to try to make it address the limitations better. Or change the flow.  MMS agrees.  I think in the above paragraph you could summarize what a programmer
+would have to do using that control over data layout to get the benefits you show in Figure 1.
+Then talk more about the problem being the programmer has to make all of the data layout decisions,
+there is potentially a large space of possible solutions, and it is non-trivial to try out all possible options.}
 In this paper, we present an extension to the RAJA C++ library that enables a programmer
 to specify the data layout for each multi-dimensional array before each 
 computation\footnote{Since the control is completely exposed, an autotuner could also try out different options.}.
