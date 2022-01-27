@@ -125,7 +125,7 @@ Although mechanisms such as compiler optimizations (loop permutation/interchange
 and data layout policies like those in Kokkos \cite{edwards2014kokkos} and RAJA \cite{hornung2014RAJA} have the potential to align data layout with computation schedules, they become difficult to automate and laborious to manage by-hand as the number of loops and arrays grow.
 \todo{Probably a good idea to refer to existing solutions to this problem as my familiarity with the literature grows}
 
-Thus, in this paper, we present an approach for exposing data layout decisions to the programmer in the C++ performance portability library RAJA.
+In this paper, we present an approach for exposing data layout decisions to the programmer in the C++ performance portability library RAJA.
 Our API allows the programmer to specify as many data layout decisions in a sequence of data-sharing loops (otherwise known as a loop chain~\cite{krieger2013loop}) as they choose.
 Then, using a portable cost model based on microbenchmarking, our system identifies any remaining layout changes that will improve performance.  
 
