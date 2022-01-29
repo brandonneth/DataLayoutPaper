@@ -517,27 +517,25 @@ Similarly, the benchmarking results for access orders gathered for one computati
 \end{comment}
 \section{Evaluation}
 
-\todo{Where we evaluated}
+We run a number of experiments to evaluate our system. 
+First, we examine performance and productivity using four benchmarks from the polybench suite\nc.
+Then, for one of the benchmarks, we perform an exhaustive evaluation of all layout choices to further explore the accuracy of our performance model.
 
-We evaluate our contribution on three codes: the polybench suite\nc, Kripke\nc, and miniWeather\nc.
+\subsection{Experiment 1: Polybench}
 
+Our first experiment targeted four benchmarks from the polybench suite: 2mm, 3mm, gemver, and mvt.
+While other benchmarks in the suite have the potential for data layout optimization, they present imperfect nesting and non-constant loop bounds, which are not currently supported by our implementation. 
 
-\subsection{Evaluation Metrics}
-When evaluating our systems, we consider a number of metrics. 
-First,  we measure the source lines of code (SLOC) added, removed, and changed to implement layout changes by hand and using our \FormatDecisions interface.
-Second, we measure the relative performance improvement between implementing layout changes by hand and using \FormatDecisions. 
-This result shows the cost of modeling overhead.
-Third, we measure the accuracy of our model on its own by determining the rank of its choices among all possible choices.
-\todo{The explanation of the model accuracy measurement needs work.} 
+Two of the four benchmarks, 2mm and 3mm, have higher loop dimensionality than data dimensionality. 
+The remaining two, gemver and mvt, have the same loop and data dimensionality. 
+This indicates that for gemver and mvt, the most profitable data transformation should be no transformation, as the traversal through the data for the conversion is the same traversal as that of the computation.
+However, because of their higher loop dimensionality, 2mm and 3mm should benefit from format conversions.
 
-\subsection{Case Study 1: Polybench}
-
-Our first evaluation targeted select benchmarks from the polybench suite: 2mm, 3mm, gemver, and mvt.
 For each benchmark, we implemented five variants.
 \verb.RAJA_OpenMP. is the original RAJA implementation.
 \verb.RAJALC. modifies \verb.RAJA_OpenMP. to use RAJALC kernel objects.
 \verb.Hand_Layout., \verb.Format_Decision., and \verb.Model_Choice. all augment the \verb.RAJALC. variant to include format changes.
-Table~\ref{VariantDescription} describes them in more detail.
+Table~\ref{VariantDescription} describes the variants in more detail.
 
 \begin{table}
 	\centering
@@ -569,51 +567,26 @@ Table~\ref{VariantDescription} describes them in more detail.
 \end{table}
 
 
+\subsection{Experiment 2: Exhaustive Search}
 
-\todo{This table is temporary.}
+Our second experiment further examines the efficacy of our model. 
+For the 2MM benchmark, we evaluated the performance of all possible format choices and compare their relative execution times against the model scores. 
+The better the model, the less the difference between the relative orderings.
+Figure~\ref{2MMAllChoices} illustrates the relative orderings. 
+
+\todo{Discuss the results. Some of the best timed ones got bad scores, but none of the bad timed ones got amazing scores.}
+
+
 \begin{figure*}
-\begin{tabular}{lll}
-Benchmark   & Inclusion  & Implementation Status?\\
-2mm         & Yes        &  \verb.RAJA_OpenMP., \verb.RAJALC., \verb.Hand_Layout.\\
-3mm         & Yes        &  \verb.RAJA_OpenMP., \verb.RAJALC., \verb.Hand_Layout.\\
-adi         & No, negative iterator increments       \\
-atax        & No, accesses to A are in-order.          \\
-bicg        & No, accesses to A are in-order.          \\
-cholesky    & No, accesses to A are in-order.          \\
-correlation & No, segs are in terms of other segs         \\
-covariance  & No, segs are in terms of other segs          \\
-deriche     & No, accesses to all multi-dimensional data are in-order.          \\
-doitgen     & no, imperfect nesting        \\
-durbin      & No, all 1D data.          \\
-fdtd-2d     & No, accesses to all multi-dimensional data are in-order.           \\
-floyd-warshall & No, accesses are in order \\
-gemm        &  No, accesses are all in order         \\
-gemver      & Yes        & \verb.RAJA_OpenMP. \verb.RAJALC. \verb.Hand_Layout. \\
-gesummv     & No, accesses are all in order          \\
-gramschmidt & No, imperfect nesting          \\
-heat-3d     & No, accesses are all in order            \\
-jacobi-1D   & No, accesses are all in order           \\
-jacobi-2D   & No, accesses are all in order           \\
-lu          & No, segs are in terms of other segs         \\
-ludcmp      & No, segs are in terms of other segs \\
-mvt         & Yes        & \verb.RAJA_OpenMP. \verb.RAJALC. \verb.Hand_Layout.\\
-nussinov    & No, too much control flow and function calls          \\
-seidel      & No, accesses are all in order           \\
-symm        & No, imperfect nesting           \\
-syr2k       & No, segs are in terms of other segs         \\
-syrk        & No, segs are in terms of other segs        \\
-trisolv     & No, accesses are all in order           \\
-trmm        & No, segs are in terms of other segs         
-\end{tabular}
-\caption{Polybench benchmarks inclusion and implementation status.}
+	\includegraphics[width=2\columnwidth]{ScoreValidity/2mm-all-choices.pdf}
+	\caption{All format choices for 2MM, sorted by execution time or performance model score. All colors is gradated based on the execution time, where dark blue is fastest and yellow is slowest. Model-selected choice highlighted with red outline.}
+	\label{2MMAllChoices}
 \end{figure*}
 
 
+\subsection{Discussion}
 
-
-\subsection{Case Study 2: miniWeather}
-
-\subsection{Case Study 3: Kripke}
+\todo{discuss the implications of the 2 experiments, how accurate the model is, overhead, limitations, etc}
 
 \section{Related Work}
 
