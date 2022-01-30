@@ -11,3 +11,9 @@ python3 intro-example.py
 python3 2mm-all.py
 
 cd ..
+
+cd RAJAPerf
+
+python3 data-analysis.py
+
+cd ..
