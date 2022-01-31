@@ -116,7 +116,7 @@ We evaluate our system on four benchmarks, where it achieves similar performance
 \end{abstract}
 \maketitle
 \def\@textbottom{\vskip \z@ \@plus 1pt}
-\let\@texttop\relax
+
 
 
 
@@ -532,6 +532,23 @@ For MVT and GEMVER, because no layout changes are made, we do not see meaningful
 Across all benchmarks, there is little difference performance difference among the variants that make layout changes.
 This indicates that the overhead of our system is minimal and that our model makes comparable layout choices to hand-tuning.
 
+To evaluate the productivity of our contribution, we report the source lines of code added or changed for each of the variants.
+This value is calculated by counting the number of line differences using python's \verb.Differ.. 
+We preprocess to remove all whitespace-only lines.
+Figure~\ref{PolybenchSLOC} shows the results.
+For the variants that make layout changes, we see a large reduction in the amount of changes required using \FormatDecisions compared to the by-hand implementation. 
+While our tool reduces the code required by more than half, it is important to note that this is with respect to an in-line format conversion.
+It is possible for a user to themselves write a function that performs the layout change.
+For the variants without layout changes, we see that using \FormatDecisions can require more code changes than a by-hand implementation. 
+This is because the \verb.Hand_Layout. variant is identical to the \verb.RAJALC. implementation, while the \verb.Format_Decision. and \verb.Model_Choice. variants instantiate the \FormatDecisions object.
+
+\begin{figure}
+	\includegraphics[width=\columnwidth]{RAJAPerf/PolybenchSLOC.pdf}
+	\caption{Source lines of code modified (added, changed, or removed) relative to the RAJA\_OpenMP variant. (Lower is better)}
+	\label{PolybenchSLOC}
+	\Description[Polybench Speedups]{Bar chart for the source lines of code changed for the different Polybench kernels. Each kernel has a cluster of four bars, one for each variant that is not the baseline.}
+\end{figure}
+
 
 \subsection{Experiment 2: Exhaustive Search for 2MM}
 
@@ -563,10 +580,6 @@ When there are multiple choices with the best model score, the final choice is r
 Future work will need to develop a procedure for making a more intelligent selection among the well-scoring options. 
 This may involve considering the cache interactions of the different references in a kernel. 
 
-\subsection{Discussion}
-
-\todo{discuss the implications of the 2 experiments, how accurate the model is, overhead, limitations, etc}
-
 \section{Related Work}
 
 Wolf and Lam~\cite{wolf1991data} develop a schedule-based algorithm for improving data locality. 
@@ -586,7 +599,22 @@ In their formulation, each data element is considered independently, meaning eac
 Furthermore they assume complete flexibility of data ordering in memory, meaning there are no restrictions on array data being stored together.
 
 Unat et. al.~\cite{unat2017trends} review trends in HPC related to data locality. They provide a variety of definitions which we utilize in our work. However, their definition of traversal order is not quite in line with RAJA's layout types, as layout changes affect the traversal order without changing the indices used. 
+
+\balance
 \section{Conclusion}
+
+We conclude with a number of limitations and directions for future work.
+The main limitation of the present study is the extent of the evaluation.
+While four benchmark programs gives a general picture of our technique and its impact, more benchmark kernels need to be examined.
+Similarly, an evaluation should be completed on a full application rather than only on benchmark loops.
+Addressing this limitation will require support for more complex loop nests and bounds.
+Another limitation is the fixed nature of our performance model.
+Future work should incorporate an interface for defining and using different performance models, allowing users to prioritize different aspects of the transformation decision.
+Currently, the performance model runs with user inputs as strict constraints.
+While this is a deliberate design decision to give users full control over the optimization, future work should provide warnings if the model identifies a better choice than the one selected by the user. 
+Finally, the data layout transformations presented in this paper work only in isolation. 
+A critical element of future work will support the simultaneous specification of data layout and loop schedule transformations. 
+
 
 \bibliographystyle{abbrv}
 \bibliography{DataRAJALC}

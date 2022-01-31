@@ -15,5 +15,6 @@ cd ..
 cd RAJAPerf
 
 python3 data-analysis.py
+python3 sloc.py
 
 cd ..
