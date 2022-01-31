@@ -1,7 +1,18 @@
-\pdfoptionpdfminorversion=7
-\documentclass[sigconf, table]{acmart}
+\documentclass[sigconf]{acmart}
 
-\usepackage{array}
+\begin{CCSXML}
+	<ccs2012>
+	   <concept>
+		   <concept_id>10011007.10011006.10011072</concept_id>
+		   <concept_desc>Software and its engineering~Software libraries and repositories</concept_desc>
+		   <concept_significance>500</concept_significance>
+		   </concept>
+	 </ccs2012>
+\end{CCSXML}
+	
+\ccsdesc[500]{Software and its engineering~Software libraries and repositories}
+\keywords{data layout, data optimization, loop chains, inter-loop optimization, performance model}
+\usepackage{array} 
 \usepackage{comment}
 \usepackage{graphicx}
 \usepackage{csquotes}
@@ -47,7 +58,8 @@ escapeinside={<@}{@>}
 \graphicspath{{.}{ScoreValidity}}
 
 %\usepackage[subtle]{savetrees}
-
+\vbadness=18000
+\vfuzz=2pt
 \title{Data Layout Optimization in RAJA}
 
 
@@ -85,6 +97,8 @@ escapeinside={<@}{@>}
 
 \begin{document}
 
+
+
 \begin{abstract}
 
 The layout of data in memory is a key consideration in high performance computing applications.
@@ -100,10 +114,11 @@ This allows the user to specify as much or as little of the layout information a
 Further, our system is built directly into the RAJA library, meaning that no additional build steps are required.
 We evaluate our system on four benchmarks, where it achieves similar performance improvements to hand-implemented optimizations.
 \end{abstract}
-
-
-
 \maketitle
+\def\@textbottom{\vskip \z@ \@plus 1pt}
+\let\@texttop\relax
+
+
 
 \section{Introduction}
 
@@ -307,6 +322,7 @@ computation();
 \Description{Fully described in the text.}
 \end{figure}
 
+
 \section{Performance Modeling}
 
 In addition to the format changes registered by the user, the new \verb.FormatDecisions. also uses a performance model to determine if additional format changes will improve performance. 
@@ -337,9 +353,12 @@ The next section discusses how we reduce the amount of microprofiling necessary 
 
 \section{Cost Estimation}
 
+
 Because our system uses microbenchmarking to estimate the cost of different layouts, the overhead can meaningfully impact overall performance. 
-To mitigate this effect, we reuse the microbenchmarking results as much as possible. 
+To mitigate this effect, we reuse the microbenchmarking results as much as possible.
+ 
 To maximize reuse, we model choices based on their access order, which describes the order in which iterations access data in memory.
+
 By using the access order instead of the full description of the access, references to different Views can be modeled with the same estimates, even if they have different argument or policy orders.
 We argue that the access order is an accurate predictive metric for the relative performance of a layout choice. 
 
@@ -389,6 +408,7 @@ We argue that the access order is an accurate predictive metric for the relative
 	\end{lstlisting}
 	\Description{Fully described in the text.}
 \end{figure}
+
 The access pattern of any View reference is identified by its access order, which is in turn defined by its argument order, the kernel policy order, and the layout order. 
 The argument order describes the order of the loop iterators in the reference with respect to the parameters of the lambda. 
 In Listing~\ref{MatMulTraversalOrder}, the references to \verb.A., \verb.B., and \verb.C. have argument orders $(0,2)$, $(2,1)$, and $(0,1)$, respectively. 
@@ -426,8 +446,8 @@ These execution times are then grouped by access order.
 If our claim is valid, then the execution times for each access order will cluster and the groups of execution times will not overlap.
 Microbenchmark 1 is an access to a 3-dimensional view in a 3-dimensional loop. 
 Microbenchmark 2 is an access to a 2-dimensional view in a 3-dimensional loop, as in a matrix multiplication.
-Microbenchmark 3 is an access to a 3-dimensional view in a 4-dimensional loop.
-\todo{Fix names of columns and labels in figures.}
+Microbenchmark 3 is an access to a 3-dimensional view in a 4-dimensional loop for a set argument order.
+
 \begin{figure}
 	\includegraphics[width=\columnwidth]{benchmark1_boxplot.pdf}
 	\caption{Execution times for 3-dimensional loop accessing 3-dimensional view, grouped by access order.}
@@ -444,7 +464,7 @@ Microbenchmark 3 is an access to a 3-dimensional view in a 4-dimensional loop.
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{benchmark3_boxplot.pdf}
-	\caption{Execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order. \todo{Right now this isn't modulating argument order.}}
+	\caption{Execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order.}
 	\label{AccessBenchmark3}
 	\Description[Access Order Execution Time Boxplot for Microbenchmark 3]{Fully described in the text}
 \end{figure}
@@ -453,32 +473,11 @@ Figure~\ref{AccessBenchmark1} shows the execution times for the different access
 Overall, the six possible access orders show good differentiation and clustering.
 The access order $(2,0,1)$ does show two subclusters, but remain highly distinct from the other access order groupings. 
 Additionally, access orders $(0,1,2)$ and $(1,0,2)$ show some overlap, likely because the bulk of the performance improvement comes from the innermost loop in a nest traversing the stride-one dimension of the data.
-
 Figure~\ref{AccessBenchmark2} shows the execution times for the different access orders for microbenchmark 2. 
 This microbenchmark also shows good cluster and differentiation.
 Like microbenchmark 1, the access orders $(0,2)$ and $(1,2)$ have similar performance, likely for the same reason. 
-
 Figure~\ref{AccessBenchmark3} shows the execution times for the different access orders for microbenchmark 3.
-\todo{I need to finish reimplementing this one.}.
-\begin{comment}
-
-
-\todo{Brandon, I am not seeing these figures right now.  Have they not been included into the repository yet?}
-Figure~\ref{accessBenchmark2} shows the execution times for the different access orders for microbenchmark 2. 
-While the access orders for this microbenchmark are all highly clustered, they are less differentiated from one another. 
-For example, we see that the orders $(0,2)$ and $(1,2)$ have similar performance, as do $(2,0)$ and $(2,1)$. 
-The similarity in performance is again attributable to the influence of the position of the innermost loop iterator. 
-
-
-
-Figure~\ref{accessBenchmark3} shows the execution times for the different access orders for microbenchmark 3. 
 A similar pattern as the previous microbenchmarks emerges here: grouping based on the position of the innermost iterator. 
-
-The major benefit of using access order as a performance metric is its reusability. 
-Because it condenses the policy, the layout, and the arguments used in the access into a single metric, the same benchmarking results can be used to estimate the cost of all three accesses within a matrix multiplication. 
-Similarly, the benchmarking results for access orders gathered for one computation can be reused when modeling another computation.
-
-\end{comment}
 
 
 %%%%%%%%%%%%%%%%%%%%%%
@@ -498,8 +497,8 @@ The remaining two, gemver and mvt, have the same loop and data dimensionality.
 This indicates that for gemver and mvt, the most profitable data transformation should be no transformation, as the traversal through the data for the conversion is the same traversal as that of the computation.
 However, because of their higher loop dimensionality, 2mm and 3mm should benefit from format conversions.
 
-For each benchmark, we implemented five variants.
-\verb.RAJA_OpenMP. is the original RAJA implementation.
+We implemented five variants of each benchmark.
+The first variant, \verb.RAJA_OpenMP., is the original RAJA implementation.
 \verb.RAJALC. modifies \verb.RAJA_OpenMP. to use RAJALC kernel objects.
 \verb.Hand_Layout., \verb.Format_Decision., and \verb.Model_Choice. all augment the \verb.RAJALC. variant to include format changes.
 Table~\ref{VariantDescription} describes the variants in more detail.
@@ -589,7 +588,8 @@ Furthermore they assume complete flexibility of data ordering in memory, meaning
 Unat et. al.~\cite{unat2017trends} review trends in HPC related to data locality. They provide a variety of definitions which we utilize in our work. However, their definition of traversal order is not quite in line with RAJA's layout types, as layout changes affect the traversal order without changing the indices used. 
 \section{Conclusion}
 
-
 \bibliographystyle{abbrv}
 \bibliography{DataRAJALC}
+
+
 \end{document}
