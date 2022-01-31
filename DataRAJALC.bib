@@ -35,6 +35,13 @@
   publisher={ACM New York, NY, USA}
 }
 
+@inproceedings{hind2001pointer,
+  title={Pointer analysis: Haven't we solved this problem yet?},
+  author={Hind, Michael},
+  booktitle={Proceedings of the 2001 ACM SIGPLAN-SIGSOFT workshop on Program analysis for software tools and engineering},
+  pages={54--61},
+  year={2001}
+}
 
 @inproceedings{chen2004ilp,
   title={An ILP-based approach to locality optimization},
@@ -70,11 +77,29 @@
   publisher={Sage Publications Sage UK: London, England}
 }
 
+@article{pouchet2012polybench,
+  title={Polybench: The polyhedral benchmark suite},
+  author={Pouchet, Louis-No{\"e}l and others},
+  journal={URL: http://www.cs.ucla.edu/pouchet/software/polybench},
+  volume={437},
+  year={2012}
+}
+
 @inproceedings{krieger2013loop,
 	Author = {Christopher D. Krieger and Michelle Mills Strout and Catherine Olschanowsky and Andrew Stone and Stephen Guzik and Xinfeng Gao and Carlo Bertolli and Paul H.J. Kelly and Gihan Mudalige and Brian Van Straalen and Sam Williams},
 	Booktitle = {Proceedings of the 18th International Workshop on High-Level Parallel Programming Models and Supportive Environments (HIPS)},
 	Month = {May},
 	Title = {Loop Chaining: A Programming Abstraction For Balancing Locality and Parallelism},
+	Year = {2013}}
+
+@inproceedings{ragan-kelley2013halide,
+	Address = {New York, NY, USA},
+	Author = {Ragan-Kelley, Jonathan and Barnes, Connelly and Adams, Andrew and Paris, Sylvain and Durand, Fr{\'e}do and Amarasinghe, Saman},
+	Booktitle = {Proceedings of the 34th ACM SIGPLAN conference on Programming language design and implementation},
+	Pages = {519--530},
+	Publisher = {ACM},
+	Series = {PLDI '13},
+	Title = {Halide: a language and compiler for optimizing parallelism, locality, and recomputation in image processing pipelines},
 	Year = {2013}}
 
   @techreport{hornung2014RAJA,
@@ -85,6 +110,25 @@
 	Title = {The {RAJA} Portability Layer: Overview and Status},
 	Year = {2014}}
 
+@article{sujeeth2014delite,
+	author = {Sujeeth, Arvind K. and Brown, Kevin J. and Lee, Hyoukjoong and Rompf, Tiark and Chafi, Hassan and Odersky, Martin and Olukotun, Kunle},
+	journal = {ACM Trans. Embed. Comput. Syst.},
+	month = apr,
+	number = {4s},
+	pages = {134:1--134:25},
+	title = {Delite: A Compiler Architecture for Performance-Oriented Embedded Domain-Specific Languages},
+	volume = {13},
+	year = {2014}}
+
+@inproceedings{mullapudi2015polymage,
+Address = {New York, NY, USA},
+Author = {Mullapudi, Ravi Teja and Vasista, Vinay and Bondhugula, Uday},
+Booktitle = {Proceedings of the Twentieth International Conference on Architectural Support for Programming Languages and Operating Systems},
+Pages = {429--443},
+Publisher = {ACM},
+Series = {ASPLOS '15},
+Title = {PolyMage: Automatic Optimization for Image Processing Pipelines},
+Year = {2015}}
 
 
 @article{unat2017trends,
@@ -98,7 +142,31 @@
   publisher={IEEE}
 }
 
-  @inproceedings{neth2021inter,
+@inproceedings{kruse2018user,
+  title={User-Directed Loop-Transformations in Clang},
+  author={Kruse, Michael and Finkel, Hal},
+  booktitle={2018 IEEE/ACM 5th Workshop on the LLVM Compiler Infrastructure in HPC (LLVM-HPC)},
+  pages={49--58},
+  year={2018},
+  organization={IEEE}
+}
+
+@article{luporini2018design,
+Author = {Fabio Luporini and Michael Lange and Mathias Louboutin and Navjot Kukreja and Jan H{\"{u}}ckelheim and Charles Yount and Philipp A. Witte and Paul H. J. Kelly and Gerard J. Gorman and Felix J. Herrmann},
+Journal = {CoRR},
+Title = {Architecture and performance of Devito, a system for automated stencil computation},
+Volume = {abs/1807.03032},
+Year = {2018}}
+
+@inproceedings{kruse2019design,
+  title={Design and use of loop-transformation pragmas},
+  author={Kruse, Michael and Finkel, Hal},
+  booktitle={International Workshop on OpenMP},
+  pages={125--139},
+  year={2019},
+  organization={Springer}
+}
+@inproceedings{neth2021inter,
   title={Inter-loop optimization in RAJA using loop chains},
   author={Neth, Brandon and Scogland, Thomas RW and de Supinski, Bronis R and Strout, Michelle Mills},
   booktitle={Proceedings of the ACM International Conference on Supercomputing},

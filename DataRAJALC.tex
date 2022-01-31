@@ -46,7 +46,7 @@ escapeinside={<@}{@>}
 \newcommand{\FormatDecisions}[0]{{\texttt{FormatDecisions}}~}
 \graphicspath{{.}{ScoreValidity}}
 
-\usepackage[subtle]{savetrees}
+%\usepackage[subtle]{savetrees}
 
 \title{Data Layout Optimization in RAJA}
 
@@ -86,16 +86,6 @@ escapeinside={<@}{@>}
 \begin{document}
 
 \begin{abstract}
-%In a world of ever-increasing diversity of computing platform, performance portability is of critical importance. 
-%Especially in high performance computing contexts, the portability of optimizations balancing parallelism and data movement are key. 
-%Such optimization portability was developed in RAJALC, an extension of RAJA incorporating the loop chain abstraction.
-%This work created an inter-loop context for the purpose of schedule optimizations like loop fusion and overlapped tiling.
-%While RAJALC enabled the portable specification of complex schedule changes, it left unleveraged a significant factor on performance: data layouts.
-%\todo{Brandon, I am not sure we want to bring up RAJALC.  Unless the symbolic execution in RAJALC is how you
-%are doing the data layout specifications and layout changes as well?  Or developing the model maybe?  The
-%connection needs to be made explicit.  I take a guess in the draft intro.}
-
-
 
 The layout of data in memory is a key consideration in high performance computing applications.
 From reducing cache and page misses to relieving pressure on memory bandwidth and avoiding inter-process communication, good data layout improves performance at all levels of an application.
@@ -119,18 +109,15 @@ We evaluate our system on four benchmarks, where it achieves similar performance
 
 How data is stored and accesses has always been recognized to have a significant impact on performance. 
 On a typical cache-based system, iterating through a two-dimensional array in column-order when data is 
-stored in row-order can lead to a \todo{how much} slowdown 
-\todo{cite... what if we just used our own results here? The verification of the traversal order stuff will show this}.
+stored in row-order can lead to significant slowdown 
 Although mechanisms such as compiler optimizations (loop permutation/interchange) 
 and data layout policies like those in Kokkos \cite{edwards2014kokkos} and RAJA \cite{hornung2014RAJA} have the potential to align data layout with computation schedules, they become difficult to automate and laborious to manage by-hand as the number of loops and arrays grow.
-\todo{Probably a good idea to refer to existing solutions to this problem as my familiarity with the literature grows}
 
-In this paper, we present an approach for exposing data layout decisions to the programmer in the C++ performance portability library RAJA.
-% FIXME: might want to say "C++ portable parallel library RAJA", parallelism is a key goal for RAJA
+In this paper, we present an approach for exposing data layout decisions to the programmer in the C++ portable parallel library RAJA.
 The presented API allows the programmer to specify as many data layout decisions in a sequence of data-sharing loops (otherwise known as a loop chain~\cite{krieger2013loop}) as they choose.
 Then, using a portable cost model based on microbenchmarking, our system identifies any remaining layout changes that will improve performance.  
 
-% HAPPY: I really like this concrete example for motivating the performance benefit.
+
 Figure~\ref{IntroExample} shows how important good data layout is. 
 The BadLayout column shows the execution time for a matrix multiplication where the three arrays are laid out opposite of their access order. 
 The GoodLayout column shows the execution time for the same matrix multiplication when the arrays are laid out to match their access order.
@@ -139,75 +126,46 @@ Finally, the SwitchAndRun column shows the combined execution times of changing 
 As the graph shows, there is significant performance improvement ($1.73\times$ speedup) simply by changing the data layout, and the cost of performing the layout change is small ($1.72\times$ speedup when including conversion time). 
 
 \begin{figure}
-	\includegraphics[width=0.7\columnwidth]{ScoreValidity/IntroExampleGraph.pdf}
+	\includegraphics[width=\columnwidth]{ScoreValidity/IntroExampleGraph.pdf}
 	\caption{Execution time for matrix multiplication using optimal and non-optimal data layouts and execution time for converting from non-optimal to optimal.}
 	\label{IntroExample}
 	\Description[Matrix Multiplication Execution Time for Different Layouts]{A bar plot showing a "Bad Layout" column with execution time greater than the "Good Layout" and "Layout Conversion" columns combined.}
 \end{figure}
 
 
-% \todo{Brandon, also we need to figure out how parallelism is related to this work, if at all.  It seems like the
-% data layouts are important because of the sequential array access order.  The below introduction does NOT
-% bring in parallelism yet due to my lack of understanding on this point.}
-
-% \todo{RUNNING EXAMPLE: A paragraph showing an example sequence of loops 
-% (2 would be sufficient) 
-% where you can show a scatter plot of performance based on different data layout choices.  
-% The Listing 1 example of 3MM would probably work.
-% The main points to make
-% are that which data layout is selected has a significant performance impact and that sometimes
-% it is worth the cost of dynamically changing the data layout between computations.}
 
 Although controlling data layout is quite important, the options programmers have to control
 data layouts in coordination with loop schedules have limitations.
-
 Compiler optimizations such as loop permutation have been developed to change loop
 schedules so that a loop traversal order better aligns with data layout.
-However, general purpose compilers (1) have difficulties analyzing for the relationship between
-data layout and schedule due to things like aliasing and lack of multidimensional arrays in 
-C/C++ languages, (2) do not generally expose fine-grained data layout or loop optimization
-controls to users, and (3) typically do not optimize across multiple loops well.
-\todo{Michelle: My understanding is that also you can't optimize two accesses at once with this method, bc changes to optimize one may un-optimize the other. Is this worth mentioning as well?}
-\todo{We should have citations for these limitations probably}
-% DATA: I thought of "Pointer Analysis: Haven't We Solved This Problem Yet?" from 2001, but there
-% are probably more recent papers talking about how difficult precise pointer and alias analysis is
-% for C/C++ programs.  I recommend searching for that one.
-% For lack of fine-grained controls could you say something like "thus the proposals to potentially
-% add loop transformation specs to pragmas in OpenMP and cite the Michael Kruse paper that
-% was in the same IWOMP as one of our loop chain transformation papers (Ian's or yours, don't remember).
-% It seems like the problem of not optimizing across multiple loops was a key part of the big picture
-% problem in many of those papers we looked at in the 620 class.  An email I sent on Aug 3, 2020
-% has some notes on potential related work.
+However, general purpose compilers 
+(1) have difficulties analyzing for the relationship between
+data layout and schedule due to challenges like aliasing~\cite{hind2001pointer} and lack of multidimensional arrays in 
+C/C++ languages; 
+(2) do not generally expose fine-grained data layout or loop optimization
+controls to users, leading to proposals to add pragma-based controls to OpenMP~\cite{kruse2019design} and Clang~\cite{kruse2018user}; and 
+(3) typically do not optimize across multiple loops well, motivating a variety of approaches~\cite{ragan-kelley2013halide,mullapudi2015polymage,sujeeth2014delite,luporini2018design}.
 
-Data layout policies provided in libraries like Kokkos or RAJA
-and programming languages like Chapel~\cite{diaconescu2007approach} give
-programmers control over the data layout of multi-dimensional arrays, but do not 
-provide assistance for switching between data layouts between computations \todo{confirm for Kokkos}
-nor help with selecting the most effective data layout strategy for a sequence of computations.
+Libraries like Kokkos and RAJA and programming languages like Chapel~\cite{diaconescu2007approach} give programmers some control over the data layout of multi-dimensional arrays, but this support is limited to the point of initialization.
+Thus, programmers are locked into that particular data format for the whole computation.
+While it is technically possible for a developer to change the data layout mid-computation in RAJA, doing so requires the developer to either modify RAJA library code or to use multiple arrays for the same data. 
+Both options increase the code complexity and increase its fragility.
+Even for the brave developer choosing one of these options, yet another obstactle remains: selecting the right combination of formats for the computation.
+For a modest computation of two loops using four 2D arrays, there are more than 200 combinations to choose from, meaning trying out all possible options quickly becomes infeasible. 
 
-\todo{this paragraph seems to echo the above. I'm going to try to make it address the limitations better. Or change the flow.  MMS agrees.  I think in the above paragraph you could summarize what a programmer
-would have to do using that control over data layout to get the benefits you show in Figure 1.
-Then talk more about the problem being the programmer has to make all of the data layout decisions,
-there is potentially a large space of possible solutions, and it is non-trivial to try out all possible options.}
-In this paper, we present an extension to the RAJA C++ library that enables a programmer
-to specify the data layout for each multi-dimensional array before each 
-computation\footnote{Since the control is completely exposed, an autotuner could also try out different options.}.
-\todo{Show the api for specifying the best performing data layout strategy
-for the RUNNING EXAMPLE.}
-However, the programmer does not have to specify all data layout information, because
-we also present a run-time performance model based on microbenchmarking that is
-then fed into an Integer Linear Programming problem to make all of the data layout decisions
-that the programmer has not made.
-The performance model and ILP solver can run dynamically or ahead of time.
+In this paper, we present an extension to the RAJA C++ library that addresses this gap in support for data layout optimizations.
+First, our extension exposes a lightweight API for implementing mid-computation data layout optimizations.
+For those with specific format changes in mind, two methods --- \verb.set_format_before. and \verb.set_format_after. --- ensure the appropriate format is used\footnote{Since the control is completely exposed, an autotuner can also try out different options.}.
+While the user can specify as many format requirements as they desire, any left unspecified are completed using our extension's performance model.
+Guided by run-time microbenchmarking, our performance model selects remaining format changes by solving an Integer Linear Programming (ILP) problem that considers the cost of converting formats against the potential improvement of using a more optimal format.
+Our inclusion of a performance model means a developer can get performance improvement without having to determine the sequence of format changes themselves.
 
 This paper includes the following contributions:
 \begin{itemize}
 \item An API in RAJA for specifying data layouts and data layout transformations.
-\item A performance model to select a data layout and data layout transformation strategy for 
-         a loop chain.
-\item An evaluation of the performance model that shows ...\todo{how often is it right on how many architectures}
-\item An optimization for reducing the amount of micro-benchmarking needed.
-\item SLOC and performance results for the resulting data layouts on 3MM, ...
+\item A performance model to select a data layout and data layout transformation strategy for a loop chain.
+\item An optimization that increases the reuse of microbenchmarking information.
+\item Performance results and source lines of code (SLOC) for five variants of four benchmark kernels.
 \end{itemize} 
 
 
@@ -260,7 +218,7 @@ This paper includes the following contributions:
 \end{figure}
 
 
-We use a variety of components of RAJA to enable automatic data format transformations, as well as features of the loop chain extension RAJALC~\todo{cite}. 
+We use a variety of components of RAJA to enable automatic data format transformations, as well as features of the loop chain extension RAJALC~\cite{neth2021inter}. 
 This section reviews how a computation is described in RAJA, working with the implementation of the 3MM kernel found in Listing~\ref{3MMStart}.
 
 The foundational elements of RAJA are the execution constructs, \verb.forall. and \verb.kernel.. 
@@ -521,10 +479,13 @@ Because it condenses the policy, the layout, and the arguments used in the acces
 Similarly, the benchmarking results for access orders gathered for one computation can be reused when modeling another computation.
 
 \end{comment}
+
+
+%%%%%%%%%%%%%%%%%%%%%%
 \section{Evaluation}
 
 We run a number of experiments to evaluate our system. 
-First, we examine performance and productivity using four benchmarks from the polybench suite\nc.
+First, we examine performance and productivity using four benchmarks from the polybench suite~\cite{pouchet2012polybench}.
 Then, for one of the benchmarks, we perform an exhaustive evaluation of all layout choices to further explore the accuracy of our performance model.
 
 \subsection{Experiment 1: Polybench}
@@ -573,7 +534,7 @@ Across all benchmarks, there is little difference performance difference among t
 This indicates that the overhead of our system is minimal and that our model makes comparable layout choices to hand-tuning.
 
 
-\subsection{Experiment 2: Exhaustive Search}
+\subsection{Experiment 2: Exhaustive Search for 2MM}
 
 Our second experiment further examines the efficacy of our model. 
 Whereas the experiments of in Section~\ref{sec:AccessMetric} examined the efficacy of access order representing individual accesses, this experiment considers the model as a whole.
