@@ -134,8 +134,9 @@ Then, using a portable cost model based on microbenchmarking, our system identif
 Figure~\ref{IntroExample} shows how important good data layout is. 
 The BadLayout column shows the execution time for a matrix multiplication where the three arrays are laid out opposite of their access order. 
 The GoodLayout column shows the execution time for the same matrix multiplication when the arrays are laid out to match their access order.
-Finally, the LayoutChange column shows the execution time of code that changes the layout from the bad layout to the good one.
-As the graph shows, there is significant performance improvement ($1.49\times$ speedup) simply by changing the data layout, and the cost of performing the layout change is small ($1.42\times$ speedup when including conversion time). 
+The LayoutChange column shows the execution time of code that changes the layout from the bad layout to the good one.
+Finally, the SwitchAndRun column shows the combined execution times of changing the layout from bad to good and then running using the good layout.
+As the graph shows, there is significant performance improvement ($1.73\times$ speedup) simply by changing the data layout, and the cost of performing the layout change is small ($1.72\times$ speedup when including conversion time). 
 
 \begin{figure}
 	\includegraphics[width=0.7\columnwidth]{ScoreValidity/IntroExampleGraph.pdf}
@@ -345,6 +346,7 @@ decisions.set_format_after(F, {{1,0}}, knl2);
 auto computation = decisions.finalize();
 computation();
 \end{lstlisting}
+\Description{Fully described in the text.}
 \end{figure}
 
 \section{Performance Modeling}
@@ -427,6 +429,7 @@ We argue that the access order is an accurate predictive metric for the relative
 		knl1();
 		knl2();
 	\end{lstlisting}
+	\Description{Fully described in the text.}
 \end{figure}
 The access pattern of any View reference is identified by its access order, which is in turn defined by its argument order, the kernel policy order, and the layout order. 
 The argument order describes the order of the loop iterators in the reference with respect to the parameters of the lambda. 
@@ -457,6 +460,7 @@ For \verb.C., $(0,1)$ becomes $(0,1)$, becomes $(1,2)$.
 This equivalence demonstrates how the monotonically increasing policy and layout orders are identity transformations.
 
 \subsection{Access Order as a Performance Metric}
+\label{sec:AccessMetric}
 Our claim is that the access order of an access is an accurate predictive metric for the relative performance of a layout choice. 
 We support this claim empirically using performance data from three microbenchmarks.
 For each microbenchmark, we record the 5-run average execution time of all combinations of policy, layout, and argument order. 
@@ -470,19 +474,21 @@ Microbenchmark 3 is an access to a 3-dimensional view in a 4-dimensional loop.
 	\includegraphics[width=\columnwidth]{benchmark1_boxplot.pdf}
 	\caption{Execution times for 3-dimensional loop accessing 3-dimensional view, grouped by access order.}
 	\label{AccessBenchmark1}
-	\Description[Access Order Execution Times for Microbenchmark 1]{Fully described in the text.}
+	\Description[Access Order Execution Times Boxplot for Microbenchmark 1]{Fully described in the text.}
 \end{figure}
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{benchmark2_boxplot.pdf}
 	\caption{Execution times for 3-dimensional loop accessing 2-dimensional view, grouped by access order.}
 	\label{AccessBenchmark2}
+	\Description[Access Order Execution Time Boxplot for Microbenchmark 2]{Fully described in the text}
 \end{figure}
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{benchmark3_boxplot.pdf}
 	\caption{Execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order. \todo{Right now this isn't modulating argument order.}}
 	\label{AccessBenchmark3}
+	\Description[Access Order Execution Time Boxplot for Microbenchmark 3]{Fully described in the text}
 \end{figure}
 
 Figure~\ref{AccessBenchmark1} shows the execution times for the different access orders for microbenchmark 1.
@@ -540,7 +546,7 @@ Table~\ref{VariantDescription} describes the variants in more detail.
 \begin{table}
 	\centering
 	\begin{tabular}{ p{2.4cm} | p{1.1cm} | p{1.1cm} | p{1cm} | p{1cm}}
-		Variant \linebreak Name & Kernel Objects & Layout Changes & Chosen \linebreak By & Written \linebreak Using \\
+		 \raggedright Variant \linebreak Name & \raggedright Kernel Objects & \raggedright Layout Changes & \raggedright Chosen By &  Written Using \tabularnewline
 		\hline
 		\verb.RAJA_OpenMP. & No & No & - & - \\
 		\verb.RAJALC. & Yes & No & - & - \\
@@ -552,37 +558,50 @@ Table~\ref{VariantDescription} describes the variants in more detail.
 	\label{VariantDescription}
 \end{table}
 
+\begin{figure}
+	\includegraphics[width=\columnwidth]{RAJAPerf/PolybenchPerfPlot.pdf}
+	\caption{Speedup of the Polybench variants relative to the RAJA\_OpenMP variant. (Higher is better)}
+	\label{PolybenchPerformance}
+	\Description[Polybench Speedups]{Bar chart for the speedup of the different Polybench kernels. Each kernel has a cluster of five bars, one for each variant. }
+\end{figure}
 
-
-
-\begin{table}
-	\centering
-	\begin{tabular}{c|c|c}
-		Kernel & Variant & Layout Changes \\
-		2MM & \verb.Hand_Layout. & Bview and Cview \\
-		3MM & \verb.Hand_Layout. & Bview, Dview, Fview (2x) \\
-		GEMVER & \verb.Hand_Layout. & None \\
-		MVT & \verb.Hand_Layout. & None 
-	\end{tabular}
-\end{table}
+Figure~\ref{PolybenchPerformance} reports the average speedup of the variants relative to the \verb.RAJA_OpenMP. variant. 
+The average is over 100 runs. 
+For the 2MM and 3MM benchmarks, the results show a meaningful speedup for the three variants that make layout changes (7.7\% to 8.3\% for 2MM and 7.0\% to 7.2\% for 3MM).
+For MVT and GEMVER, because no layout changes are made, we do not see meaningful performance improvement (<1\% change).
+Across all benchmarks, there is little difference performance difference among the variants that make layout changes.
+This indicates that the overhead of our system is minimal and that our model makes comparable layout choices to hand-tuning.
 
 
 \subsection{Experiment 2: Exhaustive Search}
 
 Our second experiment further examines the efficacy of our model. 
-For the 2MM benchmark, we evaluated the performance of all possible format choices and compare their relative execution times against the model scores. 
-The better the model, the less the difference between the relative orderings.
-Figure~\ref{2MMAllChoices} illustrates the relative orderings. 
+Whereas the experiments of in Section~\ref{sec:AccessMetric} examined the efficacy of access order representing individual accesses, this experiment considers the model as a whole.
+For the 2MM benchmark, we evaluated the performance of all possible format choices and compare their execution times against their model scores (the value of the objective function for that choice).
+We average execution times over five runs.
+The absolute accuracy of our model is measured by the correlation between the execution time and the model score.
+However, we are most interested in the \textit{relative} accuracy of our model.
+A model is more relatively accurate when choices with better model scores have lower execution times, regardless of the specific values of the score or execution time.
 
-\todo{Discuss the results. Some of the best timed ones got bad scores, but none of the bad timed ones got amazing scores.}
-
-
-\begin{figure*}
-	\includegraphics[width=2\columnwidth]{ScoreValidity/2mm-all-choices.pdf}
-	\caption{All format choices for 2MM, sorted by execution time or performance model score. All colors is gradated based on the execution time, where dark blue is fastest and yellow is slowest. Model-selected choice highlighted with red outline.}
+\begin{figure}
+	\includegraphics[width=\columnwidth]{ScoreValidity/2mm-all.pdf}
+	\caption{Execution time and model score of all possible format choices for the 2MM kernel. The model selects the choice with the lowest score. Outlier shown in red. Y axis is log-scale.}
 	\label{2MMAllChoices}
-\end{figure*}
+	\Description[Model Score and Execution Time]{Fully described in the text.}
+\end{figure}
 
+
+Figure~\ref{2MMAllChoices} plots the model scores and execution times for the different choices. 
+While the overall relationship between model score and execution is as expected, there is one notable outlier, colored in red.
+This point, which represents the choice that makes no changes to the data's format, has an unusually high model score for its relatively low execution time. 
+This is potentially attributable to our model overestimating the cost of a non-ideal data layout and underestimating the cost of changing formats. 
+
+This experiment also uncovers a limitation of our approach.
+Notice that many of the different format choices have the same model score.
+While their execution times do cluster, there is still variability in their distribution.
+When there are multiple choices with the best model score, the final choice is random amongst them.
+Future work will need to develop a procedure for making a more intelligent selection among the well-scoring options. 
+This may involve considering the cache interactions of the different references in a kernel. 
 
 \subsection{Discussion}
 
