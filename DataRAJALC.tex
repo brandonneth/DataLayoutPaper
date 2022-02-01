@@ -162,14 +162,13 @@ C/C++ languages;
 controls to users, leading to proposals to add pragma-based controls to OpenMP~\cite{kruse2019design} and Clang~\cite{kruse2018user}; and 
 (3) typically do not optimize across multiple loops well.
 
-The problem of inter-loop optimization has spawned a number of approaches. 
-Some approaches develop compiler-based heuristics\todo{cite}.
-Others develop domain specific languages and libraries that expose some level of inter-loop optimization to the programmer \todo{cite}. 
+The problem of inter-loop optimizations, especially those balancing parallelism and locality, has spawned a number of approaches. 
+Many approaches to this problem are built into the compiler, lacking a user-accessible interface.
+Some use loop schedule transformations alone~\cite{wolf1991data,mckinley1996improving}, while others consider data layout transformations as well~\cite{cierniak1995unifying,kennedy1995automatic,kandemir1998improving,  chen2005constraint, chen2005integrating, ozturk2011data}.
+Other approaches develop or expand domain specific languages to expose controls to the user.
+Many such approaches target stencil codes~\cite{henretty2011data,kronawitter2018automatic,luporini2018design} and image processing~\cite{ragan-kelley2013halide,mullapudi2015polymage}.
 
-
-, motivating a variety of approaches~\cite{ragan-kelley2013halide,mullapudi2015polymage,sujeeth2014delite,luporini2018design}.
-
-Libraries like Kokkos and RAJA and programming languages like Chapel~\cite{diaconescu2007approach} give programmers some control over the data layout of multi-dimensional arrays, but this support is limited to the point of initialization.
+General purpose libraries like Kokkos and RAJA and programming languages like Chapel~\cite{diaconescu2007approach} give programmers some control over the data layout of multi-dimensional arrays, but this support is limited to the point of initialization.
 Thus, programmers are locked into that particular data format for the whole computation.
 While it is technically possible for a developer to change the data layout mid-computation in RAJA, doing so requires the developer to either modify RAJA library code or to use multiple arrays for the same data. 
 Both options increase the code complexity and increase its fragility.
@@ -594,53 +593,6 @@ While their execution times do cluster, there is still variability in their dist
 When there are multiple choices with the best model score, the final choice is random amongst them.
 Future work will need to develop a procedure for making a more intelligent selection among the well-scoring options. 
 This may involve considering the cache interactions of the different references in a kernel. 
-
-\section{Related Work}
-
-Types of approaches / topics:
-\begin{enumerate}
-	\item schedule based transformations
-		\item tiling
-	\item compiler only approaches / no user input: \cite{cierniak1995unifying}
-	\item no model approaches
-	\item 
-\end{enumerate}
-
-Wolf and Lam~\cite{wolf1991data} develop a schedule-based algorithm for improving data locality. 
-Implemented in the SUIF compiler, they use a combination of interchange, skewing, reversal, and tiling to minimize the reuse distance of the computation's data. 
-Their approach does not change the order of data in memory, just the schedule of the loops accessing that data.
-McKinley, Carr, and Tseng~\cite{mckinley1996improving} offer a similar approach based on schedule transformations, incorporating loop fusion as well.
-
-Kennedy and Kremer~\cite{kennedy1995automatic} developed an approach for automatically selecting data layouts for distributed arrays within High Performance Fortran (HPF). 
-The high level optimization framework is similar to ours: breaking the program into segments, constructing a search space of layouts for each segment, estimating the cost of each layout choice, and selecting one candidate for each segment so that overall cost is minimized. 
-Because they target distributed arrays, their approach considers the alignment of arrays with each other \todo{confirm this, i'm not 100\% sure}, while our approach considers the direct striding costs of each array separately. 
-Furthermore, their cost estimation is performed statically~\cite{bixby1994automatic}, while ours incorporates the results of dynamic, system-specific microbenchmarking.
-
-
-Chen, Ozturk, and Kandemir~\cite{Chen2004ilp} develop a model of locality using a 0-1 ILP formulation. 
-Their decision variables indicate mappings between data elements and memory as well as scheduling choices surrounding when data elements are accessed. 
-In their formulation, each data element is considered independently, meaning each array element has its own decision variable. 
-Furthermore they assume complete flexibility of data ordering in memory, meaning there are no restrictions on array data being stored together.
-
-
-Unat et. al.~\cite{unat2017trends} review trends in HPC related to data locality. They provide a variety of definitions which we utilize in our work. However, their definition of traversal order is not quite in line with RAJA's layout types, as layout changes affect the traversal order without changing the indices used. 
-
-\cite{henretty2011data} uses specialized data layout transformations to optimize stencil computations for SIMD architectures.
-
-\cite{kronawitter2018automatic} does automatic and user-exposed layout transformations for stencil codes. arbitrary affine transformations built into ExaSlang (DSL).
-
-\cite{chen2005constraint,chen2005integrating,ozturk2011data} use a constraint network approach. No transformations between computations, no user interface.
-
-\cite{kandemir1998improving} combines schedule and data transformations. No user interface. Does consider multiple loops, but not format conversions.
-
-\cite{zinenko2018modeling} only considers schedule transformations
-
-\cite{cierniak1995unifying} combines schedule and data transformations. Only considers single loop nests. No user interface.
-
-\cite{lu2012empirical} uses empirical cost components to select data layout transformations for tensor computations. tensor computation specialized. built into dsl
-
-\cite{unat2016tida} presents abstractions for specifying loop tiling. does not do data transformations.
-
 
 \balance
 \section{Conclusion}
