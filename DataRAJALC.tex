@@ -122,15 +122,15 @@ We evaluate our system on four benchmarks, where it achieves similar performance
 
 \section{Introduction}
 
-How data is stored and accesses has always been recognized to have a significant impact on performance. 
-On a typical cache-based system, iterating through a two-dimensional array in column-order when data is 
+How data is stored and accessed has always been recognized to have a significant impact on performance. 
+For example, on a typical cache-based system, iterating through a two-dimensional array in column-order when data is 
 stored in row-order can lead to significant slowdown 
 Although mechanisms such as compiler optimizations (loop permutation/interchange) 
-and data layout policies like those in Kokkos \cite{edwards2014kokkos} and RAJA \cite{hornung2014RAJA} have the potential to align data layout with computation schedules, they become difficult to automate and laborious to manage by-hand as the number of loops and arrays grow.
+and data layout policies like those in Kokkos \cite{edwards2014kokkos} and RAJA \cite{hornung2014RAJA} have the potential to align data layout with computation schedules, they become difficult to automate and laborious to manage by hand as the number of loops and arrays grow.
 
-In this paper, we present an approach for exposing data layout decisions to the programmer in the C++ portable parallel library RAJA.
+In this paper, we present an approach for exposing data layout decisions to the programmer in the C++ portable, parallel library RAJA.
 The presented API allows the programmer to specify as many data layout decisions in a sequence of data-sharing loops (otherwise known as a loop chain~\cite{krieger2013loop}) as they choose.
-Then, using a portable cost model based on microbenchmarking, our system identifies any remaining layout changes that will improve performance.  
+Then, using a portable cost model based on microbenchmarking, our system identifies any remaining layout changes estimated to improve performance.  
 
 
 Figure~\ref{IntroExample} shows how important good data layout is. 
@@ -171,14 +171,14 @@ For a modest computation of two loops using four 2D arrays, there are more than 
 In this paper, we present an extension to the RAJA C++ library that addresses this gap in support for data layout optimizations.
 First, our extension exposes a lightweight API for implementing mid-computation data layout optimizations.
 For those with specific format changes in mind, two methods --- \verb.set_format_before. and \verb.set_format_after. --- ensure the appropriate format is used\footnote{Since the control is completely exposed, an autotuner can also try out different options.}.
-While the user can specify as many format requirements as they desire, any left unspecified are completed using our extension's performance model.
-Guided by run-time microbenchmarking, our performance model selects remaining format changes by solving an Integer Linear Programming (ILP) problem that considers the cost of converting formats against the potential improvement of using a more optimal format.
-Our inclusion of a performance model means a developer can get performance improvement without having to determine the sequence of format changes themselves.
+While the user can specify as many format requirements as they desire, any left unspecified are completed using a performance model.
+Guided by run-time microbenchmarking, the presented performance model selects remaining format changes by setting up and then solving an Integer Linear Programming (ILP) problem that considers the cost of converting formats against the potential improvement of using a more optimal format in different parts of the computation.
+Our inclusion of a performance model means a developer can obtain performance improvement without having to determine the sequence of format changes themselves.
 
 This paper includes the following contributions:
 \begin{itemize}
 \item An API in RAJA for specifying data layouts and data layout transformations.
-\item A performance model to select a data layout and data layout transformation strategy for a loop chain.
+\item A performance model to select data layouts and a data layout transformation strategy for a loop chain.
 \item An optimization that increases the reuse of microbenchmarking information.
 \item Performance results and source lines of code (SLOC) for five variants of four benchmark kernels.
 \end{itemize} 
