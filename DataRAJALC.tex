@@ -582,6 +582,15 @@ This may involve considering the cache interactions of the different references 
 
 \section{Related Work}
 
+Types of approaches / topics:
+\begin{enumerate}
+	\item schedule based transformations
+		\item tiling
+	\item compiler only approaches / no user input: \cite{cierniak1995unifying}
+	\item no model approaches
+	\item 
+\end{enumerate}
+
 Wolf and Lam~\cite{wolf1991data} develop a schedule-based algorithm for improving data locality. 
 Implemented in the SUIF compiler, they use a combination of interchange, skewing, reversal, and tiling to minimize the reuse distance of the computation's data. 
 Their approach does not change the order of data in memory, just the schedule of the loops accessing that data.
@@ -598,8 +607,28 @@ Their decision variables indicate mappings between data elements and memory as w
 In their formulation, each data element is considered independently, meaning each array element has its own decision variable. 
 Furthermore they assume complete flexibility of data ordering in memory, meaning there are no restrictions on array data being stored together.
 
+
 Unat et. al.~\cite{unat2017trends} review trends in HPC related to data locality. They provide a variety of definitions which we utilize in our work. However, their definition of traversal order is not quite in line with RAJA's layout types, as layout changes affect the traversal order without changing the indices used. 
 
+\cite{henretty2011data} uses specialized data layout transformations to optimize stencil computations for SIMD architectures.
+
+\cite{kronawitter2018automatic} does automatic and user-exposed layout transformations for stencil codes. arbitrary affine transformations built into ExaSlang (DSL).
+
+\cite{chen2005constraint,chen2005integrating,ozturk2011data} use a constraint network approach. No transformations between computations, no user interface.
+
+\cite{kandemir1998improving} combines schedule and data transformations. No user interface. Does consider multiple loops, but not format conversions.
+
+\cite{zinenko2018modeling} only considers schedule transformations
+
+\cite{cierniak1995unifying} combines schedule and data transformations. Only considers single loop nests. No user interface.
+
+\cite{lu2012empirical} uses empirical cost components to select data layout transformations for tensor computations. tensor computation specialized. built into dsl
+
+\cite{unat2016tida} presents abstractions for specifying loop tiling. does not do data transformations.
+
+
+
+\todo{ozturk 2011}.
 \balance
 \section{Conclusion}
 
@@ -615,7 +644,9 @@ While this is a deliberate design decision to give users full control over the o
 Finally, the data layout transformations presented in this paper work only in isolation. 
 A critical element of future work will support the simultaneous specification of data layout and loop schedule transformations. 
 
-
+\todo{cite isl somewhere}
+\todo{cite rajaperf somewhere}
+\todo{put the overall algorithm for the model selection}
 \bibliographystyle{abbrv}
 \bibliography{DataRAJALC}
 

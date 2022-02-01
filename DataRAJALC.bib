@@ -16,6 +16,17 @@
   publisher={Citeseer}
 }
 
+@article{cierniak1995unifying,
+  title={Unifying data and control transformations for distributed shared-memory machines},
+  author={Cierniak, Micha{\l} and Li, Wei},
+  journal={ACM SIGPLAN Notices},
+  volume={30},
+  number={6},
+  pages={205--217},
+  year={1995},
+  publisher={ACM New York, NY, USA}
+}
+
 @inproceedings{kennedy1995automatic,
   title={Automatic data layout for high performance Fortran},
   author={Kennedy, Ken and Kremer, Ulrich},
@@ -35,6 +46,16 @@
   publisher={ACM New York, NY, USA}
 }
 
+@inproceedings{kandemir1998improving,
+  title={Improving locality using loop and data transformations in an integrated framework},
+  author={Kandemir, Mahmut and Choudhary, A and Ramanujam, J and Banerjee, Prithviraj},
+  booktitle={Proceedings. 31st Annual ACM/IEEE International Symposium on Microarchitecture},
+  pages={285--296},
+  year={1998},
+  organization={IEEE},
+  url={https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.37.625&rep=rep1&type=pdf}
+}
+
 @inproceedings{hind2001pointer,
   title={Pointer analysis: Haven't we solved this problem yet?},
   author={Hind, Michael},
@@ -52,19 +73,23 @@
   organization={Springer}
 }
 
-
-
-
-@article{edwards2014kokkos,
-  title={Kokkos: Enabling manycore performance portability through polymorphic memory access patterns},
-  author={Edwards, H Carter and Trott, Christian R and Sunderland, Daniel},
-  journal={Journal of parallel and distributed computing},
-  volume={74},
-  number={12},
-  pages={3202--3216},
-  year={2014},
-  publisher={Elsevier}
+@inproceedings{chen2005integrating,
+  title={Integrating loop and data optimizations for locality within a constraint network based framework},
+  author={Chen, Guilin and Ozturk, Ozcan and Kandemir, Mahmut and Kolcu, Ibrahim},
+  booktitle={ICCAD-2005. IEEE/ACM International Conference on Computer-Aided Design, 2005.},
+  pages={279--282},
+  year={2005},
+  organization={IEEE}
 }
+@inproceedings{chen2005constraint,
+  title={A constraint network based approach to memory layout optimization},
+  author={Chen, Guilin and Kandemir, Mahmut and Karakoy, Mustafa},
+  booktitle={Design, Automation and Test in Europe},
+  pages={1156--1161},
+  year={2005},
+  organization={IEEE}
+}
+
 
 @article{diaconescu2007approach,
   title={An approach to data distributions in Chapel},
@@ -75,6 +100,36 @@
   pages={313--335},
   year={2007},
   publisher={Sage Publications Sage UK: London, England}
+}
+@article{ozturk2011data,
+  title={Data locality and parallelism optimization using a constraint-based approach},
+  author={Ozturk, Ozcan},
+  journal={Journal of Parallel and Distributed Computing},
+  volume={71},
+  number={2},
+  pages={280--287},
+  year={2011},
+  publisher={Elsevier},
+  url={http://repository.bilkent.edu.tr/bitstream/handle/11693/22029/bilkent-research-paper.pdf?sequence=1}
+}
+@inproceedings{henretty2011data,
+  title={Data layout transformation for stencil computations on short-vector simd architectures},
+  author={Henretty, Tom and Stock, Kevin and Pouchet, Louis-No{\"e}l and Franchetti, Franz and Ramanujam, J and Sadayappan, P},
+  booktitle={International Conference on Compiler Construction},
+  pages={225--245},
+  year={2011},
+  organization={Springer},
+  url={https://link.springer.com/content/pdf/10.1007/978-3-642-19861-8_13.pdf}
+}
+@article{lu2012empirical,
+  title={Empirical performance model-driven data layout optimization and library call selection for tensor contraction expressions},
+  author={Lu, Qingda and Gao, Xiaoyang and Krishnamoorthy, Sriram and Baumgartner, Gerald and Ramanujam, J and Sadayappan, Ponnuswamy},
+  journal={Journal of Parallel and Distributed Computing},
+  volume={72},
+  number={3},
+  pages={338--352},
+  year={2012},
+  publisher={Elsevier}
 }
 
 @article{pouchet2012polybench,
@@ -110,6 +165,18 @@
 	Title = {The {RAJA} Portability Layer: Overview and Status},
 	Year = {2014}}
 
+
+@article{edwards2014kokkos,
+  title={Kokkos: Enabling manycore performance portability through polymorphic memory access patterns},
+  author={Edwards, H Carter and Trott, Christian R and Sunderland, Daniel},
+  journal={Journal of parallel and distributed computing},
+  volume={74},
+  number={12},
+  pages={3202--3216},
+  year={2014},
+  publisher={Elsevier}
+}
+
 @article{sujeeth2014delite,
 	author = {Sujeeth, Arvind K. and Brown, Kevin J. and Lee, Hyoukjoong and Rompf, Tiark and Chafi, Hassan and Odersky, Martin and Olukotun, Kunle},
 	journal = {ACM Trans. Embed. Comput. Syst.},
@@ -131,6 +198,16 @@ Title = {PolyMage: Automatic Optimization for Image Processing Pipelines},
 Year = {2015}}
 
 
+@inproceedings{unat2016tida,
+  title={Tida: High-level programming abstractions for data locality management},
+  author={Unat, Didem and Nguyen, Tan and Zhang, Weiqun and Farooqi, Muhammed Nufail and Bastem, Burak and Michelogiannakis, George and Almgren, Ann and Shalf, John},
+  booktitle={International Conference on High Performance Computing},
+  pages={116--135},
+  year={2016},
+  organization={Springer}
+}
+
+
 @article{unat2017trends,
   title={Trends in data locality abstractions for HPC systems},
   author={Unat, Didem and Dubey, Anshu and Hoefler, Torsten and Shalf, John and Abraham, Mark and Bianco, Mauro and Chamberlain, Bradford L and Cledat, Romain and Edwards, H Carter and Finkel, Hal and others},
@@ -141,7 +218,16 @@ Year = {2015}}
   year={2017},
   publisher={IEEE}
 }
-
+@article{kronawitter2018automatic,
+  title={Automatic data layout transformations in the ExaStencils code generator},
+  author={Kronawitter, Stefan and Kuckuk, Sebastian and K{\"o}stler, Harald and Lengauer, Christian},
+  journal={Modern Physics Letters A},
+  volume={28},
+  number={03},
+  pages={1850009},
+  year={2018},
+  publisher={World Scientific}
+}
 @inproceedings{kruse2018user,
   title={User-Directed Loop-Transformations in Clang},
   author={Kruse, Michael and Finkel, Hal},
@@ -158,6 +244,14 @@ Title = {Architecture and performance of Devito, a system for automated stencil 
 Volume = {abs/1807.03032},
 Year = {2018}}
 
+@inproceedings{zinenko2018modeling,
+  title={Modeling the conflicting demands of parallelism and temporal/spatial locality in affine scheduling},
+  author={Zinenko, Oleksandr and Verdoolaege, Sven and Reddy, Chandan and Shirako, Jun and Grosser, Tobias and Sarkar, Vivek and Cohen, Albert},
+  booktitle={Proceedings of the 27th International Conference on Compiler Construction},
+  pages={3--13},
+  year={2018},
+  url={https://hal.inria.fr/hal-01751823/document}
+}
 @inproceedings{kruse2019design,
   title={Design and use of loop-transformation pragmas},
   author={Kruse, Michael and Finkel, Hal},
