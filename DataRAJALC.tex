@@ -709,8 +709,10 @@ Another limitation is the fixed nature of our performance model.
 Future work should incorporate an interface for defining and using different performance models, allowing users to prioritize different aspects of the transformation decision.
 Currently, the performance model runs with user inputs as strict constraints.
 While this is a deliberate design decision to give users full control over the optimization, future work should provide warnings if the model identifies a better choice than the one selected by the user. 
-Finally, the data layout transformations presented in this paper work only in isolation. 
-A critical element of future work will support the simultaneous specification of data layout and loop schedule transformations. 
+The data layout transformations presented in this paper work only in isolation. 
+An element of future work will support the simultaneous specification of data layout and loop schedule transformations. 
+Lastly, our approach to the data format problem herein only targets different dimension orderings for dense arrays. 
+This technique could be extended to work for sparse arrays as well. 
 
 \balance
 
