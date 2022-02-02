@@ -57,7 +57,7 @@ escapeinside={<@}{@>}
 
 \newcommand{\FormatDecisions}[0]{{\texttt{FormatDecisions}}~}
 
-\graphicspath{{.}{ScoreValidity}}
+\graphicspath{{.}{ScoreValidity}{RAJAPerf}}
 
 %\usepackage[subtle]{savetrees}
 \vbadness=18000
@@ -140,10 +140,10 @@ The BadLayout column shows the execution time for a matrix multiplication where 
 The GoodLayout column shows the execution time for the same matrix multiplication when the arrays are laid out to match their access order.
 The LayoutChange column shows the execution time of code that changes the layout from the bad layout to the good one.
 Finally, the SwitchAndRun column shows the combined execution times of changing the layout from bad to good and then running using the good layout.
-As the graph shows, there is significant performance improvement ($1.73\times$ speedup) simply by changing the data layout, and the cost of performing the layout change is small ($1.72\times$ speedup when including conversion time). 
+As the graph shows, there is significant performance improvement (72\%) simply by changing the data layout, and the cost of performing the layout change is small (<1\% of execution time). 
 
 \begin{figure}
-	\includegraphics[width=\columnwidth]{ScoreValidity/IntroExampleGraph.pdf}
+	\includegraphics[width=\columnwidth]{IntroExampleGraph.pdf}
 	\caption{Execution time for matrix multiplication using optimal and non-optimal data layouts and execution time for converting from non-optimal to optimal.}
 	\label{IntroExample}
 	\Description[Matrix Multiplication Execution Time for Different Layouts]{A bar plot showing a "Bad Layout" column with execution time greater than the "Good Layout" and "Layout Conversion" columns combined.}
@@ -371,7 +371,7 @@ Both algorithms generate models for each view in the computation independently.
 
 
 \begin{figure}
-\begin{lstlisting}[caption={Algorithm for constructing decision space and constraints.},label={SpaceAndConstraints}]
+\begin{lstlisting}[caption={Algorithm for constructing decision space and constraints.\todo{show the ilp set formulation instead of the code.}},label={SpaceAndConstraints}]
 create_variables(view):
 	# variables for the fmt choices
 	for kernel in kernels:
@@ -549,24 +549,25 @@ If our claim is valid, then the execution times for each access order will clust
 Microbenchmark 1 is an access to a 3-dimensional view in a 3-dimensional loop. 
 Microbenchmark 2 is an access to a 2-dimensional view in a 3-dimensional loop, as in a matrix multiplication.
 Microbenchmark 3 is an access to a 3-dimensional view in a 4-dimensional loop for a set argument order.
+The outermost loop is parallelized using OpenMP.
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{benchmark1_boxplot.pdf}
-	\caption{Execution times for 3-dimensional loop accessing 3-dimensional view, grouped by access order.}
+	\caption{Box plot showing execution times for 3-dimensional loop accessing 3-dimensional view, grouped by access order. Each point represents a different combination of policy, layout, and argument orders. Each access order group is jittered.}
 	\label{AccessBenchmark1}
 	\Description[Access Order Execution Times Boxplot for Microbenchmark 1]{Fully described in the text.}
 \end{figure}
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{benchmark2_boxplot.pdf}
-	\caption{Execution times for 3-dimensional loop accessing 2-dimensional view, grouped by access order.}
+	\caption{Box plot showing execution times for 3-dimensional loop accessing 2-dimensional view, grouped by access order. Each point represents a different combination of policy, layout, and argument orders. Each access order group is jittered.}
 	\label{AccessBenchmark2}
 	\Description[Access Order Execution Time Boxplot for Microbenchmark 2]{Fully described in the text}
 \end{figure}
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{benchmark3_boxplot.pdf}
-	\caption{Execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order.}
+	\caption{Box plot showing execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order. Each point represents a different combination of policy, layout, and argument orders. Each access order group is jittered.}
 	\label{AccessBenchmark3}
 	\Description[Access Order Execution Time Boxplot for Microbenchmark 3]{Fully described in the text}
 \end{figure}
@@ -575,6 +576,7 @@ Figure~\ref{AccessBenchmark1} shows the execution times for the different access
 Overall, the six possible access orders show good differentiation and clustering.
 The access order $(2,0,1)$ does show two subclusters, but remain highly distinct from the other access order groupings. 
 Additionally, access orders $(0,1,2)$ and $(1,0,2)$ show some overlap, likely because the bulk of the performance improvement comes from the innermost loop in a nest traversing the stride-one dimension of the data.
+We also hypothesize that the different between orders $(0,2,1)$ and $(2,0,1)$ is due to better data partitioning for the threads in the $(0,2,1)$ order. 
 Figure~\ref{AccessBenchmark2} shows the execution times for the different access orders for microbenchmark 2. 
 This microbenchmark also shows good cluster and differentiation.
 Like microbenchmark 1, the access orders $(0,2)$ and $(1,2)$ have similar performance, likely for the same reason. 
@@ -635,8 +637,8 @@ Table~\ref{VariantDescription} describes the variants in more detail.
 \end{table}
 
 \begin{figure}
-	\includegraphics[width=\columnwidth]{RAJAPerf/PolybenchPerfPlot.pdf}
-	\caption{Speedup of the Polybench variants relative to the RAJA\_OpenMP variant. (Higher is better)}
+	\includegraphics[width=\columnwidth]{PolybenchPerfPlot.pdf}
+	\caption{Normalized execution time of the Polybench variants relative to the RAJA\_OpenMP variant (Lower is better). Referent execution times are 3.2,4.7,0.039, and 0.12 seconds.}
 	\label{PolybenchPerformance}
 	\Description[Polybench Speedups]{Bar chart for the speedup of the different Polybench kernels. Each kernel has a cluster of five bars, one for each variant. }
 \end{figure}
@@ -659,9 +661,9 @@ For the variants without layout changes, we see that using \verb.FormatDecisions
 This is because the \verb.Hand_Layout. variant is identical to the \verb.RAJALC. implementation, while the \verb.Format_Decision. and \verb.Model_Choice. variants instantiate the \verb.FormatDecisions. object.
 
 \begin{figure}
-	\includegraphics[width=\columnwidth]{RAJAPerf/PolybenchSLOC.pdf}
+	\includegraphics[width=\columnwidth]{PolybenchSLOC.pdf}
 	\caption{Source lines of code modified (added, changed, or removed) relative to the RAJA\_OpenMP variant. (Lower is better)}
-	\label{PolybenchSLOC}
+	\label{PolybenchSLOC}  
 	\Description[Polybench Speedups]{Bar chart for the source lines of code changed for the different Polybench kernels. Each kernel has a cluster of four bars, one for each variant that is not the baseline.}
 \end{figure}
 
@@ -677,7 +679,7 @@ However, we are most interested in the \textit{relative} accuracy of our model.
 A model is more relatively accurate when choices with better model scores have lower execution times, regardless of the specific values of the score or execution time.
 
 \begin{figure}
-	\includegraphics[width=\columnwidth]{ScoreValidity/2mm-all.pdf}
+	\includegraphics[width=\columnwidth]{2mm-all.pdf}
 	\caption{Execution time and model score of all possible format choices for the 2MM kernel. The model selects the choice with the lowest score. Outlier shown in red. Y axis is log-scale.}
 	\label{2MMAllChoices}
 	\Description[Model Score and Execution Time]{Fully described in the text.}
@@ -692,7 +694,7 @@ This is potentially attributable to our model overestimating the cost of a non-i
 This experiment also uncovers a limitation of our approach.
 Notice that many of the different format choices have the same model score.
 While their execution times do cluster, there is still variability in their distribution.
-When there are multiple choices with the best model score, the final choice is random amongst them.
+When there are multiple choices with   the best model score, the final choice is random amongst them.
 Future work will need to develop a procedure for making a more intelligent selection among the well-scoring options. 
 This may involve considering the cache interactions of the different references in a kernel. 
 
