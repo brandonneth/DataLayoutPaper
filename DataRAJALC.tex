@@ -23,6 +23,7 @@
 \usepackage{subcaption}
 
 \usepackage{standalone}
+\usepackage{algorithmicx}
 
 \lstset{ %
 language=C++,                % choose the language of the code
@@ -356,85 +357,100 @@ First, we execute and time a small loop with similar access patterns to the choi
 Second, we multiply the microprofiling result by the number of iterations the choice affects.
 For example, a conversion decision for \verb.B. in Listing~\ref{FormatDecisions3MM} would be multiplied by the dimensions of \verb.B..
 In contrast, a format decision for \verb.B. for \verb.knl1. would be multiplied by all three loop dimensions. 
-The next section discusses how we reduce the amount of microprofiling necessary to make all of the estimates.
+
+While we can estimate the cost of format conversions without information about the kernels themselves, the cost of using a format for a computation depends on how that computation accesses the data.
+Thus, we need to gather information about how each kernel accesses the data that may be transformed. 
+To do so, we use RAJALC's symbolic evaluation capabilities. 
+By defining an overloaded call operator in the View class, we can gather access information for each kernel at runtime. 
+Then, this access information is used to estimate the cost of using different formats. 
+Once all the cost estimates are added to the objective function, we use the Integer Set Library~\cite{verdoolaege2010isl} to find the points in the space with the lowest overall cost estimates. 
+
+Listing~\ref{SpaceAndConstraints} shows the pseudocode algorithm for creating the decision space and the constraints that ensure the final choice is both valid and respects the format selections made by the user.
+Listing~\ref{AlgObjFunc} shows the psuedocode algorithm for constructing the objective function based on performance estimates. 
+Both algorithms generate models for each view in the computation independently. 
+
 
 \begin{figure}
-\begin{lstlisting}[caption={Algorithm for constructing decision space and constraints.}]
-create_variables(view, model) 
-	// variables for the format choices
+\begin{lstlisting}[caption={Algorithm for constructing decision space and constraints.},label={SpaceAndConstraints}]
+create_variables(view):
+	# variables for the fmt choices
 	for kernel in kernels:
-		for format in formats:
-			model.add_format_variable(view,format,kernel)
+		for fmt in formats:
+			add_format_variable(view,fmt,kernel)
 
-	// variables for the conversion choices. 
-	// there is one conversion time before each kernel and one after the last kernel
-	for conversion_time in conversion_times
-		for in_format in formats:
-			for out_format in formats:
-				model.add_conversion_variable(view,in_format,out_format,conversion_time)
+	# variables for the conversion choices. 
+	# there is one conv time before each 
+	# kernel and one after the last kernel
+	for conv_time in conversion_times:
+		for in_fmt in formats:
+			for out_fmt in formats:
+				add_conv_variable(view,in_fmt,out_fmt,conv_time)
 
-add_constraints(view, model):
+add_constraints(view):
 
-	//Format Uniqueness
+	# Format Uniqueness
 	for kernel in kernels:
 		sum = new Sum()
-		for format in formats:
-			sum += model.get_format_variable(view, format, kernel)
-		model.add_equality_constraint(1,sum)
+		for fmt in formats:
+			sum += get_format_variable(view, fmt, kernel)
+		add_equality_constraint(1,sum)
 	
-	//Conversion Uniqueness:
-	for conversion_time in conversion_times:
+	# Conversion Uniqueness:
+	for conv_time in conversion_times:
 		sum = new Sum()
-		for in_format in formats:
-			for out_format in formats:
-				sum += model.get_conversion_variable(view, in_format, out_format, conversion_time)
-		model.add_equality_constraint(1, sum)
+		for in_fmt in formats:
+			for out_fmt in formats:
+				sum += get_conv_variable(view, in_fmt, out_fmt, conv_time)
+		add_equality_constraint(1, sum)
 	
-	// Format-Conversion Matching, input
-	for format_variable in model.format_variables:
-		conversion_time = format_variable.next_conversion
-		in_format = format_variable.format
+	# Format-Conversion Matching, input
+	for format_variable in format_variables:
+		conv_time = format_variable.next_conversion
+		in_fmt = format_variable.format
 		sum = new Sum()
-		for out_format in formats:
-			sum += model.get_conversion_variable(view, in_format, out_format, conversion_time)
-		model.add_equality_constraint(format_variable, sum)
+		for out_fmt in fmts:
+			sum += get_conv_variable(view, in_fmt, out_fmt, conv_time)
+		add_equality_constraint(format_variable, sum)
 
-	// Format-Conversion Matching, output
-	for format_variable in model.format_variables:
-		conversion_time = format_variable.prior_conversion
-		out_format = format_variable.format
+	# Format-Conversion Matching, output
+	for format_variable in format_variables:
+		conv_time = format_variable.prior_conv
+		out_fmt = format_variable.format
 		sum = new Sum()
-		for in_format in formats:
-			sum += model.get_conversion_variable(view, in_format, out_format, conversion_time)
-		model.add_equality_constraint(format_variable, sum)	
+		for in_fmt in fmts:
+			sum += get_conv_variable(view, in_fmt, out_fmt, conv_time)
+		add_equality_constraint(format_variable, sum)	
 
-	// User Prescription
-	for (format,kernel) in user_decisions:
-		format_variable = model.get_format_variable(view, format, kernel)
-		model.add_equality_constaint(format_variable, 1)
+	# User Prescription
+	for (fmt,kernel) in user_decisions:
+		format_variable = get_format_variable(view, fmt, kernel)
+		add_equality_constaint(format_variable, 1)
 \end{lstlisting}
+\Description[Algorithm for creating the model's decision variables and constraints.]{Algorithms for two functions, create variables and add constraints.}
 \end{figure}
 
 \begin{figure}
-\begin{lstlisting}[caption={Algorithm for constructing objective function.}]
-add_objective_function(view, model):
+\begin{lstlisting}[caption={Algorithm for constructing objective function.}, label={AlgObjFunc}]
+add_objective_function(view):
 	obj_func = new ObjectiveFunction()
 	
-	//cost estimates for conversions
-	for conversion_variable in model.conversion_variables:
+	# cost estimates for conversions
+	for conversion_variable in conversion_variables:
 		coefficient = conversion_variable.estimate_cost() * view.size()
 		obj_func += (coefficient * conversion_variable)
 	
+	# cost estimates for accesses using different formats
 	for kernel in kernels:
 		view_accesses = kernel.evaluate_symbolically()
 		for access to view in accesses:
-			for format in formats:
-				format_variable = model.get_format_variable(view, format, kernel)
+			for fmt in formats:
+				format_variable = get_format_variable(view, fmt, kernel)
 				estimated_cost = format_variable.estimate_cost(access)
 				coefficient = estimated_cost * kernel.size()
 				obj_func += (coefficient * format_variable)
-	model.set_objective_function(obj_func)
+	set_objective_function(obj_func)
 \end{lstlisting}
+\Description{Algorithm for the function to create the model's objective function. First it adds cost estimates for conveersions, then adds cost estimates for the accesses in the computation.}
 \end{figure}
 
 \section{Cost Estimation}
@@ -573,7 +589,8 @@ A similar pattern as the previous microbenchmarks emerges here: grouping based o
 We run a number of experiments to evaluate our system. 
 First, we examine performance and productivity using four benchmarks from the polybench suite~\cite{pouchet2012polybench}.
 Then, for one of the benchmarks, we perform an exhaustive evaluation of all layout choices to further explore the accuracy of our performance model.
-
+All performance results in this paper were collected on a single node with a 44-core IBM Power9 CPU and 256GB of CPU memory.
+All compilation used Clang version 13.0.0.
 \subsection{Experiment 1: Polybench}
 
 Our first experiment examined the performance and programmer productivy impacts of our contribution.
@@ -681,7 +698,7 @@ This may involve considering the cache interactions of the different references 
 
 
 \section{Conclusion}
-\balance
+
 
 We conclude with a number of limitations and directions for future work.
 The main limitation of the present study is the extent of the evaluation.
@@ -695,7 +712,8 @@ While this is a deliberate design decision to give users full control over the o
 Finally, the data layout transformations presented in this paper work only in isolation. 
 A critical element of future work will support the simultaneous specification of data layout and loop schedule transformations. 
 
-\todo{cite isl somewhere}
+\balance
+
 \bibliographystyle{abbrv}
 \bibliography{DataRAJALC}
 
