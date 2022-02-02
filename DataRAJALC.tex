@@ -23,6 +23,7 @@
 \usepackage{subcaption}
 
 \usepackage{standalone}
+\usepackage{algorithmicx}
 
 \lstset{ %
 language=C++,                % choose the language of the code
@@ -55,6 +56,7 @@ escapeinside={<@}{@>}
 \newcommand{\ttt}[1]{{\texttt{#1}}}
 
 \newcommand{\FormatDecisions}[0]{{\texttt{FormatDecisions}}~}
+
 \graphicspath{{.}{ScoreValidity}}
 
 %\usepackage[subtle]{savetrees}
@@ -159,9 +161,15 @@ data layout and schedule due to challenges like aliasing~\cite{hind2001pointer} 
 C/C++ languages; 
 (2) do not generally expose fine-grained data layout or loop optimization
 controls to users, leading to proposals to add pragma-based controls to OpenMP~\cite{kruse2019design} and Clang~\cite{kruse2018user}; and 
-(3) typically do not optimize across multiple loops well, motivating a variety of approaches~\cite{ragan-kelley2013halide,mullapudi2015polymage,sujeeth2014delite,luporini2018design}.
+(3) typically do not optimize across multiple loops well.
 
-Libraries like Kokkos and RAJA and programming languages like Chapel~\cite{diaconescu2007approach} give programmers some control over the data layout of multi-dimensional arrays, but this support is limited to the point of initialization.
+The problem of inter-loop optimizations, especially those balancing parallelism and locality, has spawned a number of approaches. 
+Many approaches to this problem are built into the compiler, lacking a user-accessible interface.
+Some use loop schedule transformations alone~\cite{wolf1991data,mckinley1996improving}, while others consider data layout transformations as well~\cite{cierniak1995unifying,kennedy1995automatic,kandemir1998improving,  chen2005constraint, chen2005integrating, ozturk2011data}.
+Other approaches develop or expand domain specific languages to expose controls to the user.
+Many such approaches target stencil codes~\cite{henretty2011data,kronawitter2018automatic,luporini2018design} and image processing~\cite{ragan-kelley2013halide,mullapudi2015polymage}.
+
+General purpose libraries like Kokkos and RAJA and programming languages like Chapel~\cite{diaconescu2007approach} give programmers some control over the data layout of multi-dimensional arrays, but this support is limited to the point of initialization.
 Thus, programmers are locked into that particular data format for the whole computation.
 While it is technically possible for a developer to change the data layout mid-computation in RAJA, doing so requires the developer to either modify RAJA library code or to use multiple arrays for the same data. 
 Both options increase the code complexity and increase its fragility.
@@ -173,14 +181,14 @@ First, our extension exposes a lightweight API for implementing mid-computation 
 For those with specific format changes in mind, two methods --- \verb.set_format_before. and \verb.set_format_after. --- ensure the appropriate format is used\footnote{Since the control is completely exposed, an autotuner can also try out different options.}.
 While the user can specify as many format requirements as they desire, any left unspecified are completed using a performance model.
 Guided by run-time microbenchmarking, the presented performance model selects remaining format changes by setting up and then solving an Integer Linear Programming (ILP) problem that considers the cost of converting formats against the potential improvement of using a more optimal format in different parts of the computation.
-Our inclusion of a performance model means a developer can obtain performance improvement without having to determine the sequence of format changes themselves.
+Our inclusion of a performance model means a developer can obtain performance improvement without having to determine the sequence of format changes themselves or use an autotuner to try every possible option.
 
 This paper includes the following contributions:
 \begin{itemize}
 \item An API in RAJA for specifying data layouts and data layout transformations.
-\item A performance model to select data layouts and a data layout transformation strategy for a loop chain.
+\item A performance model to select data layouts based on runtime microbenchmarking and a data layout transformation strategy for a loop chain.
 \item An optimization that increases the reuse of microbenchmarking information.
-\item Performance results and source lines of code (SLOC) for five variants of four benchmark kernels.
+\item Performance results and source lines of code (SLOC) for five variants of four benchmark kernels comparing hand-implemented optimizations to our system.
 \end{itemize} 
 
 
@@ -349,7 +357,101 @@ First, we execute and time a small loop with similar access patterns to the choi
 Second, we multiply the microprofiling result by the number of iterations the choice affects.
 For example, a conversion decision for \verb.B. in Listing~\ref{FormatDecisions3MM} would be multiplied by the dimensions of \verb.B..
 In contrast, a format decision for \verb.B. for \verb.knl1. would be multiplied by all three loop dimensions. 
-The next section discusses how we reduce the amount of microprofiling necessary to make all of the estimates.
+
+While we can estimate the cost of format conversions without information about the kernels themselves, the cost of using a format for a computation depends on how that computation accesses the data.
+Thus, we need to gather information about how each kernel accesses the data that may be transformed. 
+To do so, we use RAJALC's symbolic evaluation capabilities. 
+By defining an overloaded call operator in the View class, we can gather access information for each kernel at runtime. 
+Then, this access information is used to estimate the cost of using different formats. 
+Once all the cost estimates are added to the objective function, we use the Integer Set Library~\cite{verdoolaege2010isl} to find the points in the space with the lowest overall cost estimates. 
+
+Listing~\ref{SpaceAndConstraints} shows the pseudocode algorithm for creating the decision space and the constraints that ensure the final choice is both valid and respects the format selections made by the user.
+Listing~\ref{AlgObjFunc} shows the psuedocode algorithm for constructing the objective function based on performance estimates. 
+Both algorithms generate models for each view in the computation independently. 
+
+
+\begin{figure}
+\begin{lstlisting}[caption={Algorithm for constructing decision space and constraints.},label={SpaceAndConstraints}]
+create_variables(view):
+	# variables for the fmt choices
+	for kernel in kernels:
+		for fmt in formats:
+			add_format_variable(view,fmt,kernel)
+
+	# variables for the conversion choices. 
+	# there is one conv time before each 
+	# kernel and one after the last kernel
+	for conv_time in conversion_times:
+		for in_fmt in formats:
+			for out_fmt in formats:
+				add_conv_variable(view,in_fmt,out_fmt,conv_time)
+
+add_constraints(view):
+
+	# Format Uniqueness
+	for kernel in kernels:
+		sum = new Sum()
+		for fmt in formats:
+			sum += get_format_variable(view, fmt, kernel)
+		add_equality_constraint(1,sum)
+	
+	# Conversion Uniqueness:
+	for conv_time in conversion_times:
+		sum = new Sum()
+		for in_fmt in formats:
+			for out_fmt in formats:
+				sum += get_conv_variable(view, in_fmt, out_fmt, conv_time)
+		add_equality_constraint(1, sum)
+	
+	# Format-Conversion Matching, input
+	for format_variable in format_variables:
+		conv_time = format_variable.next_conversion
+		in_fmt = format_variable.format
+		sum = new Sum()
+		for out_fmt in fmts:
+			sum += get_conv_variable(view, in_fmt, out_fmt, conv_time)
+		add_equality_constraint(format_variable, sum)
+
+	# Format-Conversion Matching, output
+	for format_variable in format_variables:
+		conv_time = format_variable.prior_conv
+		out_fmt = format_variable.format
+		sum = new Sum()
+		for in_fmt in fmts:
+			sum += get_conv_variable(view, in_fmt, out_fmt, conv_time)
+		add_equality_constraint(format_variable, sum)	
+
+	# User Prescription
+	for (fmt,kernel) in user_decisions:
+		format_variable = get_format_variable(view, fmt, kernel)
+		add_equality_constaint(format_variable, 1)
+\end{lstlisting}
+\Description[Algorithm for creating the model's decision variables and constraints.]{Algorithms for two functions, create variables and add constraints.}
+\end{figure}
+
+\begin{figure}
+\begin{lstlisting}[caption={Algorithm for constructing objective function.}, label={AlgObjFunc}]
+add_objective_function(view):
+	obj_func = new ObjectiveFunction()
+	
+	# cost estimates for conversions
+	for conversion_variable in conversion_variables:
+		coefficient = conversion_variable.estimate_cost() * view.size()
+		obj_func += (coefficient * conversion_variable)
+	
+	# cost estimates for accesses using different formats
+	for kernel in kernels:
+		view_accesses = kernel.evaluate_symbolically()
+		for access to view in accesses:
+			for fmt in formats:
+				format_variable = get_format_variable(view, fmt, kernel)
+				estimated_cost = format_variable.estimate_cost(access)
+				coefficient = estimated_cost * kernel.size()
+				obj_func += (coefficient * format_variable)
+	set_objective_function(obj_func)
+\end{lstlisting}
+\Description{Algorithm for the function to create the model's objective function. First it adds cost estimates for conveersions, then adds cost estimates for the accesses in the computation.}
+\end{figure}
 
 \section{Cost Estimation}
 
@@ -485,17 +587,31 @@ A similar pattern as the previous microbenchmarks emerges here: grouping based o
 
 We present a number of experiments to evaluate our system. 
 First, we examine performance and productivity using four benchmarks from the polybench suite~\cite{pouchet2012polybench}.
-Then, for one of the benchmarks, we perform an exhaustive evaluation of all layout choices to explore the accuracy of our performance model.
+Then, for one of the benchmarks, we perform an exhaustive evaluation of all layout choices to further explore the accuracy of our performance model.
+All performance results in this paper were collected on a single node with a 44-core IBM Power9 CPU and 256GB of CPU memory.
+All compilation used Clang version 13.0.0.
 
 \subsection{Experiment 1: Polybench}
 
-Our first experiment targeted four benchmarks from the polybench suite: 2mm, 3mm, gemver, and mvt.
+Our first experiment examined the performance and programmer productivy impacts of our contribution.
+We targeted four benchmarks from the Polybench suite: \textsc{2mm}, \textsc{3mm}, \textsc{gemver}, and \textsc{mvt}.
 While other benchmarks in the suite have the potential for data layout optimization, they present imperfect nesting and non-constant loop bounds, which are not currently supported by our implementation. 
+For each benchmark, we implemented different variants and compared their relative speedup and the number of code changes necessary to go from the original implementation to the variant implementation.
+We used RAJAPerf~\cite{hornung2017raja} to run our experiments.
 
-Two of the four benchmarks, 2mm and 3mm, have higher loop dimensionality than data dimensionality. 
-The remaining two, gemver and mvt, have the same loop and data dimensionality. 
-This indicates that for gemver and mvt, the most profitable data transformation should be no transformation, as the traversal through the data for the conversion is the same traversal as that of the computation.
-However, because of their higher loop dimensionality, 2mm and 3mm should benefit from format conversions.
+\textsc{2mm} solves the matrix expression $A*B*C$ using two matrix multiplications. 
+First, it computes $A*B$ and stores the results in a temporary array.
+Then this temporary result is multiplied by $C$.
+\textsc{3mm} solves a similar matrix expression $A*B*C*D$ using three matrix multiplications.
+It computes $A*B$, then $C*D$, then multiplies the results.
+\textsc{gemver} computes a vector multiplication and adds the result to a matrix. 
+Finally, \textsc{mvt} computes a \textbf{m}atrix \textbf{v}ector product and \textbf{t}ranspose.
+
+Two of the four benchmarks, \textsc{2mm} and \textsc{3mm}, have higher loop dimensionality than data dimensionality. 
+The remaining two, \textsc{gemver} and \textsc{mvt}, have the same loop and data dimensionality. 
+This indicates that for \textsc{gemver} and \textsc{mvt}, the most profitable data transformation should be no transformation, as the traversal through the data for the conversion is the same traversal as that of the computation.
+For computations such as these, loop schedule transformations may be able to improve locality without the prohibitive cost of format conversions~\cite{kandemir1998improving}.
+However, because of their higher loop dimensionality, \textsc{2mm} and \textsc{3mm} should benefit from format conversions.
 
 We implemented five variants of each benchmark.
 The first variant, \verb.RAJA_OpenMP., is the original RAJA implementation.
@@ -527,8 +643,8 @@ Table~\ref{VariantDescription} describes the variants in more detail.
 
 Figure~\ref{PolybenchPerformance} reports the average speedup of the variants relative to the \verb.RAJA_OpenMP. variant. 
 The average is over 100 runs. 
-For the 2MM and 3MM benchmarks, the results show a meaningful speedup for the three variants that make layout changes (7.7\% to 8.3\% for 2MM and 7.0\% to 7.2\% for 3MM).
-For MVT and GEMVER, because no layout changes are made, we do not see meaningful performance improvement (<1\% change).
+For the \textsc{2mm} and \textsc{3mm} benchmarks, the results show a meaningful speedup for the three variants that make layout changes (7.7\% to 8.3\% for \textsc{2mm} and 7.0\% to 7.2\% for \textsc{3mm}).
+For \textsc{mvt} and \textsc{gemver}, because no layout changes are made, we do not see meaningful performance improvement (<1\% change).
 Across all benchmarks, there is little difference performance difference among the variants that make layout changes.
 This indicates that the overhead of our system is minimal and that our model makes comparable layout choices to hand-tuning.
 
@@ -536,11 +652,11 @@ To evaluate the productivity of our contribution, we report the source lines of 
 This value is calculated by counting the number of line differences using python's \verb.Differ.. 
 We preprocess to remove all whitespace-only lines.
 Figure~\ref{PolybenchSLOC} shows the results.
-For the variants that make layout changes, we see a large reduction in the amount of changes required using \FormatDecisions compared to the by-hand implementation. 
+For the variants that make layout changes, we see a large reduction in the amount of changes required using \verb.FormatDecisions. compared to the by-hand implementation. 
 While our tool reduces the code required by more than half, it is important to note that this is with respect to an in-line format conversion.
 It is possible for a user to themselves write a function that performs the layout change.
-For the variants without layout changes, we see that using \FormatDecisions can require more code changes than a by-hand implementation. 
-This is because the \verb.Hand_Layout. variant is identical to the \verb.RAJALC. implementation, while the \verb.Format_Decision. and \verb.Model_Choice. variants instantiate the \FormatDecisions object.
+For the variants without layout changes, we see that using \verb.FormatDecisions. can require more code changes than a by-hand implementation. 
+This is because the \verb.Hand_Layout. variant is identical to the \verb.RAJALC. implementation, while the \verb.Format_Decision. and \verb.Model_Choice. variants instantiate the \verb.FormatDecisions. object.
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{RAJAPerf/PolybenchSLOC.pdf}
@@ -550,11 +666,11 @@ This is because the \verb.Hand_Layout. variant is identical to the \verb.RAJALC.
 \end{figure}
 
 
-\subsection{Experiment 2: Exhaustive Search for 2MM}
+\subsection{Experiment 2: Exhaustive Search for \textsc{2mm}}
 
 Our second experiment further examines the efficacy of our model. 
 Whereas the experiments of in Section~\ref{sec:AccessMetric} examined the efficacy of access order representing individual accesses, this experiment considers the model as a whole.
-For the 2MM benchmark, we evaluated the performance of all possible format choices and compare their execution times against their model scores (the value of the objective function for that choice).
+For the \textsc{2mm} benchmark, we evaluated the performance of all possible format choices and compare their execution times against their model scores (the value of the objective function for that choice).
 We average execution times over five runs.
 The absolute accuracy of our model is measured by the correlation between the execution time and the model score.
 However, we are most interested in the \textit{relative} accuracy of our model.
@@ -580,28 +696,9 @@ When there are multiple choices with the best model score, the final choice is r
 Future work will need to develop a procedure for making a more intelligent selection among the well-scoring options. 
 This may involve considering the cache interactions of the different references in a kernel. 
 
-\section{Related Work}
 
-Wolf and Lam~\cite{wolf1991data} develop a schedule-based algorithm for improving data locality. 
-Implemented in the SUIF compiler, they use a combination of interchange, skewing, reversal, and tiling to minimize the reuse distance of the computation's data. 
-Their approach does not change the order of data in memory, just the schedule of the loops accessing that data.
-McKinley, Carr, and Tseng~\cite{mckinley1996improving} offer a similar approach based on schedule transformations, incorporating loop fusion as well.
-
-Kennedy and Kremer~\cite{kennedy1995automatic} developed an approach for automatically selecting data layouts for distributed arrays within High Performance Fortran (HPF). 
-The high level optimization framework is similar to ours: breaking the program into segments, constructing a search space of layouts for each segment, estimating the cost of each layout choice, and selecting one candidate for each segment so that overall cost is minimized. 
-Because they target distributed arrays, their approach considers the alignment of arrays with each other \todo{confirm this, i'm not 100\% sure}, while our approach considers the direct striding costs of each array separately. 
-Furthermore, their cost estimation is performed statically~\cite{bixby1994automatic}, while ours incorporates the results of dynamic, system-specific microbenchmarking.
-
-
-Chen, Ozturk, and Kandemir~\cite{Chen2004ilp} develop a model of locality using a 0-1 ILP formulation. 
-Their decision variables indicate mappings between data elements and memory as well as scheduling choices surrounding when data elements are accessed. 
-In their formulation, each data element is considered independently, meaning each array element has its own decision variable. 
-Furthermore they assume complete flexibility of data ordering in memory, meaning there are no restrictions on array data being stored together.
-
-Unat et. al.~\cite{unat2017trends} review trends in HPC related to data locality. They provide a variety of definitions which we utilize in our work. However, their definition of traversal order is not quite in line with RAJA's layout types, as layout changes affect the traversal order without changing the indices used. 
-
-\balance
 \section{Conclusion}
+
 
 We conclude with a number of limitations and directions for future work.
 The main limitation of the present study is the extent of the evaluation.
@@ -612,9 +709,12 @@ Another limitation is the fixed nature of our performance model.
 Future work should incorporate an interface for defining and using different performance models, allowing users to prioritize different aspects of the transformation decision.
 Currently, the performance model runs with user inputs as strict constraints.
 While this is a deliberate design decision to give users full control over the optimization, future work should provide warnings if the model identifies a better choice than the one selected by the user. 
-Finally, the data layout transformations presented in this paper work only in isolation. 
-A critical element of future work will support the simultaneous specification of data layout and loop schedule transformations. 
+The data layout transformations presented in this paper work only in isolation. 
+An element of future work will support the simultaneous specification of data layout and loop schedule transformations. 
+Lastly, our approach to the data format problem herein only targets different dimension orderings for dense arrays. 
+This technique could be extended to work for sparse arrays as well. 
 
+\balance
 
 \bibliographystyle{abbrv}
 \bibliography{DataRAJALC}
