@@ -358,6 +358,85 @@ For example, a conversion decision for \verb.B. in Listing~\ref{FormatDecisions3
 In contrast, a format decision for \verb.B. for \verb.knl1. would be multiplied by all three loop dimensions. 
 The next section discusses how we reduce the amount of microprofiling necessary to make all of the estimates.
 
+\begin{figure}
+\begin{lstlisting}[caption={Algorithm for constructing decision space and constraints.}]
+create_variables(view, model) 
+	// variables for the format choices
+	for kernel in kernels:
+		for format in formats:
+			model.add_format_variable(view,format,kernel)
+
+	// variables for the conversion choices. 
+	// there is one conversion time before each kernel and one after the last kernel
+	for conversion_time in conversion_times
+		for in_format in formats:
+			for out_format in formats:
+				model.add_conversion_variable(view,in_format,out_format,conversion_time)
+
+add_constraints(view, model):
+
+	//Format Uniqueness
+	for kernel in kernels:
+		sum = new Sum()
+		for format in formats:
+			sum += model.get_format_variable(view, format, kernel)
+		model.add_equality_constraint(1,sum)
+	
+	//Conversion Uniqueness:
+	for conversion_time in conversion_times:
+		sum = new Sum()
+		for in_format in formats:
+			for out_format in formats:
+				sum += model.get_conversion_variable(view, in_format, out_format, conversion_time)
+		model.add_equality_constraint(1, sum)
+	
+	// Format-Conversion Matching, input
+	for format_variable in model.format_variables:
+		conversion_time = format_variable.next_conversion
+		in_format = format_variable.format
+		sum = new Sum()
+		for out_format in formats:
+			sum += model.get_conversion_variable(view, in_format, out_format, conversion_time)
+		model.add_equality_constraint(format_variable, sum)
+
+	// Format-Conversion Matching, output
+	for format_variable in model.format_variables:
+		conversion_time = format_variable.prior_conversion
+		out_format = format_variable.format
+		sum = new Sum()
+		for in_format in formats:
+			sum += model.get_conversion_variable(view, in_format, out_format, conversion_time)
+		model.add_equality_constraint(format_variable, sum)	
+
+	// User Prescription
+	for (format,kernel) in user_decisions:
+		format_variable = model.get_format_variable(view, format, kernel)
+		model.add_equality_constaint(format_variable, 1)
+\end{lstlisting}
+\end{figure}
+
+\begin{figure}
+\begin{lstlisting}[caption={Algorithm for constructing objective function.}]
+add_objective_function(view, model):
+	obj_func = new ObjectiveFunction()
+	
+	//cost estimates for conversions
+	for conversion_variable in model.conversion_variables:
+		coefficient = conversion_variable.estimate_cost() * view.size()
+		obj_func += (coefficient * conversion_variable)
+	
+	for kernel in kernels:
+		view_accesses = kernel.evaluate_symbolically()
+		for access to view in accesses:
+			for format in formats:
+				format_variable = model.get_format_variable(view, format, kernel)
+				estimated_cost = format_variable.estimate_cost(access)
+				coefficient = estimated_cost * kernel.size()
+				obj_func += (coefficient * format_variable)
+	model.set_objective_function(obj_func)
+\end{lstlisting}
+\end{figure}
+
 \section{Cost Estimation}
 
 
@@ -498,12 +577,18 @@ Then, for one of the benchmarks, we perform an exhaustive evaluation of all layo
 \subsection{Experiment 1: Polybench}
 
 Our first experiment examined the performance and programmer productivy impacts of our contribution.
-We targeted four benchmarks from the polybench suite: \textsc{2mm}, \textsc{3mm}, \textsc{gemver}, and \textsc{mvt}.
+We targeted four benchmarks from the Polybench suite: \textsc{2mm}, \textsc{3mm}, \textsc{gemver}, and \textsc{mvt}.
 While other benchmarks in the suite have the potential for data layout optimization, they present imperfect nesting and non-constant loop bounds, which are not currently supported by our implementation. 
 For each benchmark, we implemented different variants and compared their relative speedup and the number of code changes necessary to go from the original implementation to the variant implementation.
 We used RAJAPerf~\cite{hornung2017raja} to run our experiments.
 
-\todo{Describe each benchmark in detail}
+\textsc{2mm} solves the matrix expression $A*B*C$ using two matrix multiplications. 
+First, it computes $A*B$ and stores the results in a temporary array.
+Then this temporary result is multiplied by $C$.
+\textsc{3mm} solves a similar matrix expression $A*B*C*D$ using three matrix multiplications.
+It computes $A*B$, then $C*D$, then multiplies the results.
+\textsc{gemver} computes a vector multiplication and adds the result to a matrix. 
+Finally, \textsc{mvt} computes a \textbf{m}atrix \textbf{v}ector product and \textbf{t}ranspose.
 
 Two of the four benchmarks, \textsc{2mm} and \textsc{3mm}, have higher loop dimensionality than data dimensionality. 
 The remaining two, \textsc{gemver} and \textsc{mvt}, have the same loop and data dimensionality. 
@@ -611,8 +696,6 @@ Finally, the data layout transformations presented in this paper work only in is
 A critical element of future work will support the simultaneous specification of data layout and loop schedule transformations. 
 
 \todo{cite isl somewhere}
-
-\todo{put the overall algorithm for the model selection}
 \bibliographystyle{abbrv}
 \bibliography{DataRAJALC}
 
