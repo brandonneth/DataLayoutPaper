@@ -14,6 +14,7 @@ clean:
 
 figures:
 	git pull
+	git submodule init
 	git submodule update --remote
 	./generate_plots.sh
 
