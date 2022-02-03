@@ -391,7 +391,7 @@ Thus, we need to gather information about how each kernel accesses the data that
 To do so, we use RAJALC's symbolic evaluation capabilities. 
 By defining an overloaded call operator in the View class, we can gather access information for each kernel at runtime. 
 Then, this access information is used to estimate the cost of using different formats. 
-Once all the cost estimates are added to the objective function, we use the Integer Set Library~\cite{verdoolaege2010isl} to find the points in the space with the lowest overall cost estimates. 
+Once all cost estimates are added to the objective function, we use the Integer Set Library~\cite{verdoolaege2010isl} to find the points in the space with the lowest overall cost estimates. 
 
 
 
