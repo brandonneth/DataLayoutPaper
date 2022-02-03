@@ -264,7 +264,7 @@ The View object has a number of capabilities that make it a valuable tool within
 First, Views use the call operator to perform memory accesses. 
 By overloading this call operator for symbolic iterator types, RAJALC enabled the runtime symbolic evaluation of kernels that use Views.
 RAJALC used the access information gathered from symbolic evaluation to ensure the correctness of its scheduling optimizations.
-This work uses RAJALC's runtime symbolic evaluation to inform our performance model \todo{forward reference to where its discussed}.
+This work uses RAJALC's runtime symbolic evaluation to inform our performance model.
 
 Second, Views fully parameterize their underlying data formats with the Layout object.
 Consider a programmer who wants to switch their data from row-major to column-major. 
@@ -538,7 +538,7 @@ The outermost loop is parallelized using OpenMP.
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{benchmark3_boxplot.pdf}
-	\caption{Box plot showing execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order. Each point represents a different combination of policy, layout, and argument orders. Each access order group is jittered.}
+	\caption{Box plot showing execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order. Each point represents a different combination of policy, and layout for a fixed argument order. Each access order group is jittered.}
 	\label{AccessBenchmark3}
 	\Description[Access Order Execution Time Boxplot for Microbenchmark 3]{Fully described in the text}
 \end{figure}
@@ -635,7 +635,7 @@ This is because the \verb.Hand_Layout. variant is identical to the \verb.RAJALC.
 	\includegraphics[width=\columnwidth]{PolybenchSLOC.pdf}
 	\caption{Source lines of code modified (added, changed, or removed) relative to the RAJA\_OpenMP variant. (Lower is better)}
 	\label{PolybenchSLOC}  
-	\Description[Polybench Speedups]{Bar chart for the source lines of code changed for the different Polybench kernels. Each kernel has a cluster of four bars, one for each variant that is not the baseline.}
+	\Description[Polybench SLOC]{Bar chart for the source lines of code changed for the different Polybench kernels. Each kernel has a cluster of four bars, one for each variant that is not the baseline.}
 \end{figure}
 
 
@@ -651,7 +651,7 @@ A model is more relatively accurate when choices with better model scores have l
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{2mm-all.pdf}
-	\caption{Execution time and model score of all possible format choices for the 2MM kernel. The model selects the choice with the lowest score. Outlier shown in red. Y axis is log-scale.}
+	\caption{Execution time and model score of all possible format choices for the 2MM kernel. The model selects the choice with the lowest score. Outlier shown in red.}
 	\label{2MMAllChoices}
 	\Description[Model Score and Execution Time]{Fully described in the text.}
 \end{figure}
