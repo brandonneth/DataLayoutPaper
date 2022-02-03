@@ -340,49 +340,43 @@ We encode the problem as an integer linear program where the solution represents
 
 We use binary decision variables representing whether or not a particular format is used at different points in the chain. 
 For example, there are eight decision variables for the \verb.B. View in Listing~\ref{FormatDecisions3MM}, one for each of the two possible formats at each of the four points in the chain. 
-While there are only three kernels in the chain, there is an additional point added for the \enquote{output} format that the View has after the computation is done. 
+While there are only three kernels in the chain, there is an additional point added for the \enquote{output} format that the View has after the computation is done.
+We also add constant variables for the format when the computation begins. 
 We also use decision variables to represent the required format conversions.
+We construct separate models for each View in the computation. 
+
+Symbolically, we represent the variables as follows.
+To start, let $F$, $K$, and $T$ represent the set of all formats, kernels, and conversion times.
+Because we add additional elements to $K$ for the input and output formats, we know that $|K|$ is the number of user kernels plus 2.
+Furthermore, because there is one more conversion than kernel, we know that $|T| = |K| + 1$.
+For each kernel, we have one variable for each format. 
+Thus, let $fmt_{f,k}$ denote the variable for using the format $f$ during kernel $k$, where $f \in F$ and $k \in K$.
+For conversion variables, we have one variable for each possible conversion at each time point. 
+Thus, let $conv_{i,o,t}$ denote the decision variable for converting from format $i$ to to format $o$ at conversion time $t$, where $i,o \in F$ and $t \in T$.
 
 Four types of constraints are imposed on the decision variables.
 \begin{itemize}
-\item Format Uniqueness: At each time point, every View has exactly one selected format. 
-\item Conversion Uniqueness: At each conversion point, every View goes through exactly one conversion.
-\item Format-Conversion Matching: At each conversion point, the input format for the conversion matches the format of the immediately preceding kernel. Similarly, the output format for the conversion matches the format of the immediately succeeding kernel.
-\item User Prescription: All user-provided format choices are met.
-\end{itemize}
-
-We construct separate models for each View in the computation. 
-Symbolically, we can construct the model's constraints as follows.
-To start, let $F$, $K$, and $T$ represent the set of all formats, kernels, and conversion times.
-Because there is one more conversion than kernel, we know that $|T| = |K| + 1$.
-Furthermore, we add an extra elements to $K$ to represent the formats before any computation occurs and after all the computations are complete.
-Next, we can enumerate our decision variables.
-For the format decision variables, we have one per format per computation. 
-Let $fmt_{f,k}$ denote the variable for using the format $f$ during kernel $k$.
-Similarly for the conversion decision variables, let $conv_{i,o,t}$ denote the decision variable for converting from format $i$ to to format $o$ at conversion time $t$.
-With our variables defined, we can add our constraints.
-The Format Uniqueness constraints are given by:
+\item Format Uniqueness: At each time point, the View has exactly one selected format. Given by: 
 \begin{align*}
 	\bigwedge\limits_{k \in K} (1 = \sum\limits_{f \in F} fmt_{f,k})
 \end{align*}
-Conversion Uniqueness constraints are similar:
+\item Conversion Uniqueness: At each conversion point, the View goes through exactly one conversion. Given by:
 \begin{align*}
 	\bigwedge\limits_{t \in T} (1 = \sum\limits_{i \in F}\sum\limits_{o \in F} conv_{i,o,t})
 \end{align*}
-Format Conversion Matching constraints have two parts. 
-The first matches the inputs of the conversions to the format at the preceding kernel:
+\item Format-Conversion Matching, Input: At each conversion point, the input format for the conversion matches the format of the preceding kernel. Given by:
 \begin{align*}
 	\bigwedge\limits_{t \in T} \bigwedge\limits_{i \in F} fmt_{i,t.prev} = \sum\limits_{o \in F} conv_{i,o,t}
 \end{align*}
-In this formulation, $t.prev$ represents the kernel before $t$. 
-Outputs are matched similarly:
+\item Format-Conversion Matching, Output: At each conversion point, the output format for the conversion matches the format of the following kernel. Given by:
 \begin{align*}
 	\bigwedge\limits_{t \in T} \bigwedge\limits_{o \in F} fmt_{o,t.next} = \sum\limits_{i \in F} conv_{i,o,t}
 \end{align*}
-Finally, if we represent all the user choices $U$ as pairs of kernels and the formats the user wants, we can represent the constraints as:
+\item User Prescription: All user-provided format choices are met. With all user choices $U$ represented as pairs of kernels and the format the user wants for that kernel, given by:
 \begin{align*}
 	\bigwedge\limits_{(k,f) \in U}  fmt_{f,k} = 1
 \end{align*}
+\end{itemize}
 
 The objective function is constructed using the estimated cost of the format choices and conversions. 
 Each decision variable is assigned a cost coefficient in the following manner.
