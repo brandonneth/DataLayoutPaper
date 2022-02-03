@@ -419,13 +419,12 @@ add_objective_function(view):
 \end{figure}
 
 \begin{figure*}
-	\includegraphics[width=2\columnwidth]{FormatConversionsFigure.pdf}
+	\includegraphics[width=2\columnwidth]{FormatConversionFigure.pdf}
 	\caption{Formats, conversions, and decision variables for a 3 kernel computation. The green frames show example groups of variables that must sum to 1 due to the Format and Conversion Uniqueness Constraints. The red and blue underlines show examples of the Conversion-Format Matching constraints for input and output constraints respectively. }
 	\label{ConstraintExample}
-	\Description{5 columns titled kernels, formats, format varaibles, conversions, and conversion variables. The conversion columns are offset so that the conversions fall between the formats. A Green box surround the pair of variables fmt col major knl1 and fmt row major knl1. Another green box surrounds the conversion variables for conversion 1.}
+	\Description{5 columns titled kernels, formats, format varaibles, conversions, and conversion variables. The conversion columns are offset so that the conversions fall between the formats. A Green box surround the pair of variables fmt col major knl1 and fmt row major knl1. Another green box surrounds the conversion variables for conversion 1.} 
 \end{figure*}
 \section{Cost Estimation}
-
 
 Because our system uses microbenchmarking to estimate the cost of different layouts, the overhead can meaningfully impact overall performance. 
 To mitigate this effect, we reuse the microbenchmarking results as much as possible.
