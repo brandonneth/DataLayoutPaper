@@ -106,13 +106,14 @@ escapeinside={<@}{@>}
 The layout of data in memory is a key consideration in high performance computing applications.
 From reducing cache and page misses to relieving pressure on memory bandwidth and avoiding inter-process communication, good data layout improves performance at all levels of an application.
 RAJA, a C++ performance portability library, incorporates the layout of an application's data into its definition.
-Thus, a developer can try out different layouts without major refactoring costs.
+Thus, a developer can try different layouts without major refactoring costs.
 However, some applications benefit from changing the data layout mid-computation to facilitate better locality.
 Implementing such a mid-computation layout change in RAJA can improve performance, but is laborious to implement and lacks portability.
 This work remedies RAJA's shortcoming by introducing a lightweight, declarative API for changing data layouts between computations.
 Also, we present an automated layout decider that dynamically estimates performance using the loop bounds and data access order as input. 
-These systems work together, meaning the decider \enquote{fills in} layout choices not made by the user.
-This allows the user to specify as much or as little of the layout information as they please and still obtain the performance benefits of changing data layouts.  
+These systems combine so that the decider \enquote{fills in} layout choices
+that the user did not specify.
+Thus the user can specify as much of the layout information as they please and still obtain the performance benefits of changing data layouts.  
 Further, our system is built directly into the RAJA library, meaning that no additional build steps are required.
 We evaluate our system on four benchmarks, where it achieves similar performance improvements to hand-implemented optimizations.
 \end{abstract}
