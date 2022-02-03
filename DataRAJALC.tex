@@ -301,7 +301,7 @@ The new \verb.FormatDecisions. object is the central component of our system.
 Its instantiation takes a tuple of references to Views that are possible targets of format changes and the kernel objects that constitute the whole computation.
 Two methods are used to register desired formats: \verb.set_format_before. and \verb.set_format_after..
 Both take the View to be reformated, the desired format, and the computation before or after which the desired format should be used.
-Once all the format choices are registered, the complete computation with the desired format conversions is generated using the \verb.finalize. method.
+Once all format choices are registered, the complete computation with the desired format conversions is generated using the \verb.finalize. method.
 
 
 \begin{figure}
