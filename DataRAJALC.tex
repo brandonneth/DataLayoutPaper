@@ -129,19 +129,19 @@ How data is stored and accessed has always been recognized to have a significant
 For example, on a typical cache-based system, iterating through a two-dimensional array in column-order when data is 
 stored in row-order can lead to significant slowdown 
 Although mechanisms such as compiler optimizations (loop permutation/interchange) 
-and data layout policies like those in Kokkos \cite{edwards2014kokkos} and RAJA \cite{hornung2014RAJA} have the potential to align data layout with computation schedules, they become difficult to automate and laborious to manage by hand as the number of loops and arrays grow.
+and data layout policies like those in Kokkos \cite{edwards2014kokkos} and RAJA \cite{hornung2014RAJA} can align data layout with computation schedules, they become difficult to automate and laborious to manage by hand as the number of loops and arrays grow.
 
 In this paper, we present an approach for exposing data layout decisions to the programmer in the C++ portable, parallel library RAJA.
 The presented API allows the programmer to specify as many data layout decisions in a sequence of data-sharing loops (otherwise known as a loop chain~\cite{krieger2013loop}) as they choose.
 Then, using a portable cost model based on microbenchmarking, our system identifies any remaining layout changes estimated to improve performance.  
 
 
-Figure~\ref{IntroExample} shows how important good data layout is. 
+Figure~\ref{IntroExample} shows the importance of a good data layout. 
 The BadLayout column shows the execution time for a matrix multiplication where the three arrays are laid out opposite of their access order. 
 The GoodLayout column shows the execution time for the same matrix multiplication when the arrays are laid out to match their access order.
 The LayoutChange column shows the execution time of code that changes the layout from the bad layout to the good one.
-Finally, the SwitchAndRun column shows the combined execution times of changing the layout from bad to good and then running using the good layout.
-As the graph shows, there is significant performance improvement (72\%) simply by changing the data layout, and the cost of performing the layout change is small (<1\% of execution time). 
+Finally, the SwitchAndRun column shows the combined execution time of changing the layout from bad to good and then running.
+As the graph shows, performance improves  significantly (72\%) simply by changing the data layout, and the cost of performing the layout change is small (<1\% of execution time). 
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{IntroExampleGraph.pdf}
@@ -164,31 +164,31 @@ C/C++ languages;
 controls to users, leading to proposals to add pragma-based controls to OpenMP~\cite{kruse2019design} and Clang~\cite{kruse2018user}; and 
 (3) typically do not optimize across multiple loops well.
 
-The problem of inter-loop optimizations, especially those balancing parallelism and locality, has spawned a number of approaches. 
-Many approaches to this problem are built into the compiler, lacking a user-accessible interface.
+The problem of inter-loop optimizations, especially those that balance parallelism and locality, has spawned many approaches. 
+Approaches are often built into the compiler, lacking a user-accessible interface.
 Some use loop schedule transformations alone~\cite{wolf1991data,mckinley1996improving}, while others consider data layout transformations as well~\cite{cierniak1995unifying,kennedy1995automatic,kandemir1998improving,  chen2005constraint, chen2005integrating, ozturk2011data}.
 Other approaches develop or expand domain specific languages to expose controls to the user.
 Many such approaches target stencil codes~\cite{henretty2011data,kronawitter2018automatic,luporini2018design} and image processing~\cite{ragan-kelley2013halide,mullapudi2015polymage}.
 
-General purpose libraries like Kokkos and RAJA and programming languages like Chapel~\cite{diaconescu2007approach} give programmers some control over the data layout of multi-dimensional arrays, but this support is limited to the point of initialization.
-Thus, programmers are locked into that particular data format for the whole computation.
-While it is technically possible for a developer to change the data layout mid-computation in RAJA, doing so requires the developer to either modify RAJA library code or to use multiple arrays for the same data. 
+General purpose libraries like Kokkos and RAJA and programming languages like Chapel~\cite{diaconescu2007approach} give programmers some control over the data layout of multi-dimensional arrays. However, this support is limited to the point of initialization.
+Thus, programmers must use that particular data format for the entire computation.
+While a developer could change the data layout mid-computation in RAJA, the developer must either modify RAJA library code or use multiple arrays for the same data. 
 Both options increase the code complexity and increase its fragility.
 Even for the brave developer choosing one of these options, yet another obstactle remains: selecting the right combination of formats for the computation.
-For a modest computation of two loops using four 2D arrays, there are more than 200 combinations to choose from, meaning trying out all possible options quickly becomes infeasible. 
+Even a modest computation of two loops using four 2D arrays has more than 200 combinations from which to choose, meaning trying out all possible options quickly becomes infeasible. 
 
-In this paper, we present an extension to the RAJA C++ library that addresses this gap in support for data layout optimizations.
+We extend the RAJA C++ library to address this gap in support for data layout optimizations.
 First, our extension exposes a lightweight API for implementing mid-computation data layout optimizations.
 For those with specific format changes in mind, two methods --- \verb.set_format_before. and \verb.set_format_after. --- ensure the appropriate format is used\footnote{Since the control is completely exposed, an autotuner can also try out different options.}.
 While the user can specify as many format requirements as they desire, any left unspecified are completed using a performance model.
-Guided by run-time microbenchmarking, the presented performance model selects remaining format changes by setting up and then solving an Integer Linear Programming (ILP) problem that considers the cost of converting formats against the potential improvement of using a more optimal format in different parts of the computation.
+Guided by run-time microbenchmarking, the model selects format changes based on the solution of an Integer Linear Programming (ILP) problem that considers the cost of converting formats against the potential improvement with an alternative format.
 Our inclusion of a performance model means a developer can obtain performance improvement without having to determine the sequence of format changes themselves or use an autotuner to try every possible option.
 
 This paper includes the following contributions:
 \begin{itemize}
-\item An API in RAJA for specifying data layouts and data layout transformations.
-\item A performance model to select data layouts based on runtime microbenchmarking and a data layout transformation strategy for a loop chain.
-\item An optimization that increases the reuse of microbenchmarking information.
+\item An API in RAJA for specifying data layouts and data layout transformations;
+\item A performance model to select data layouts based on runtime microbenchmarking and a data layout transformation strategy for a loop chain;
+\item An optimization that increases the reuse of microbenchmarking information; and
 \item Performance results and source lines of code (SLOC) for five variants of four benchmark kernels comparing hand-implemented optimizations to our system.
 \end{itemize} 
 
