@@ -429,7 +429,6 @@ add_objective_function(view):
 
 Because our system uses microbenchmarking to estimate the cost of different layouts, the overhead can meaningfully impact overall performance. 
 To mitigate this effect, we reuse the microbenchmarking results as much as possible.
- 
 To maximize reuse, we model choices based on their access order, which describes the order in which iterations access data in memory.
 
 By using the access order instead of the full description of the access, references to different Views can be modeled with the same estimates, even if they have different argument or policy orders.
