@@ -48,7 +48,7 @@ keywordstyle=\color{blue},       % keyword style
   numberstyle=\tiny\color{black}, % the style that is used for the line-numbers
   rulecolor=\color{black},
 escapeinside={<@}{@>}
-}
+} 
 \definecolor{ForestGreen}{RGB}{34,139,34}
 \newcommand{\todo}[1]{{\textcolor{red}{{\tt{TODO:}}\,\,#1 }}}
 \newcommand{\nc}[0]{\todo{cite}}
@@ -347,9 +347,42 @@ Four types of constraints are imposed on the decision variables.
 \begin{itemize}
 \item Format Uniqueness: At each time point, every View has exactly one selected format. 
 \item Conversion Uniqueness: At each conversion point, every View goes through exactly one conversion.
-\item Format-Conversion Matching: At each conversion point, the input format for the conversion matches the format of the immediately preceding time point. Similarly, the output format for the conversion matches the format of the immediately succeeding time point.
+\item Format-Conversion Matching: At each conversion point, the input format for the conversion matches the format of the immediately preceding kernel. Similarly, the output format for the conversion matches the format of the immediately succeeding kernel.
 \item User Prescription: All user-provided format choices are met.
 \end{itemize}
+
+We construct separate models for each View in the computation. 
+Symbolically, we can construct the model's constraints as follows.
+To start, let $F$, $K$, and $T$ represent the set of all formats, kernels, and conversion times.
+Because there is one more conversion than kernel, we know that $|T| = |K| + 1$.
+Furthermore, we add an extra elements to $K$ to represent the formats before any computation occurs and after all the computations are complete.
+Next, we can enumerate our decision variables.
+For the format decision variables, we have one per format per computation. 
+Let $fmt_{f,k}$ denote the variable for using the format $f$ during kernel $k$.
+Similarly for the conversion decision variables, let $conv_{i,o,t}$ denote the decision variable for converting from format $i$ to to format $o$ at conversion time $t$.
+With our variables defined, we can add our constraints.
+The Format Uniqueness constraints are given by:
+\begin{align*}
+	\bigwedge\limits_{k \in K} (1 = \sum\limits_{f \in F} fmt_{f,k})
+\end{align*}
+Conversion Uniqueness constraints are similar:
+\begin{align*}
+	\bigwedge\limits_{t \in T} (1 = \sum\limits_{i \in F}\sum\limits_{o \in F} conv_{i,o,t})
+\end{align*}
+Format Conversion Matching constraints have two parts. 
+The first matches the inputs of the conversions to the format at the preceding kernel:
+\begin{align*}
+	\bigwedge\limits_{t \in T} \bigwedge\limits_{i \in F} fmt_{i,t.prev} = \sum\limits_{o \in F} conv_{i,o,t}
+\end{align*}
+In this formulation, $t.prev$ represents the kernel before $t$. 
+Outputs are matched similarly:
+\begin{align*}
+	\bigwedge\limits_{t \in T} \bigwedge\limits_{o \in F} fmt_{o,t.next} = \sum\limits_{i \in F} conv_{i,o,t}
+\end{align*}
+Finally, if we represent all the user choices $U$ as pairs of kernels and the formats the user wants, we can represent the constraints as:
+\begin{align*}
+	\bigwedge\limits_{(k,f) \in U}  fmt_{f,k} = 1
+\end{align*}
 
 The objective function is constructed using the estimated cost of the format choices and conversions. 
 Each decision variable is assigned a cost coefficient in the following manner.
@@ -365,69 +398,7 @@ By defining an overloaded call operator in the View class, we can gather access 
 Then, this access information is used to estimate the cost of using different formats. 
 Once all the cost estimates are added to the objective function, we use the Integer Set Library~\cite{verdoolaege2010isl} to find the points in the space with the lowest overall cost estimates. 
 
-Listing~\ref{SpaceAndConstraints} shows the pseudocode algorithm for creating the decision space and the constraints that ensure the final choice is both valid and respects the format selections made by the user.
-Listing~\ref{AlgObjFunc} shows the psuedocode algorithm for constructing the objective function based on performance estimates. 
-Both algorithms generate models for each view in the computation independently. 
 
-
-\begin{figure}
-\begin{lstlisting}[caption={Algorithm for constructing decision space and constraints.\todo{show the ilp set formulation instead of the code.}},label={SpaceAndConstraints}]
-create_variables(view):
-	# variables for the fmt choices
-	for kernel in kernels:
-		for fmt in formats:
-			add_format_variable(view,fmt,kernel)
-
-	# variables for the conversion choices. 
-	# there is one conv time before each 
-	# kernel and one after the last kernel
-	for conv_time in conversion_times:
-		for in_fmt in formats:
-			for out_fmt in formats:
-				add_conv_variable(view,in_fmt,out_fmt,conv_time)
-
-add_constraints(view):
-
-	# Format Uniqueness
-	for kernel in kernels:
-		sum = new Sum()
-		for fmt in formats:
-			sum += get_format_variable(view, fmt, kernel)
-		add_equality_constraint(1,sum)
-	
-	# Conversion Uniqueness:
-	for conv_time in conversion_times:
-		sum = new Sum()
-		for in_fmt in formats:
-			for out_fmt in formats:
-				sum += get_conv_variable(view, in_fmt, out_fmt, conv_time)
-		add_equality_constraint(1, sum)
-	
-	# Format-Conversion Matching, input
-	for format_variable in format_variables:
-		conv_time = format_variable.next_conversion
-		in_fmt = format_variable.format
-		sum = new Sum()
-		for out_fmt in fmts:
-			sum += get_conv_variable(view, in_fmt, out_fmt, conv_time)
-		add_equality_constraint(format_variable, sum)
-
-	# Format-Conversion Matching, output
-	for format_variable in format_variables:
-		conv_time = format_variable.prior_conv
-		out_fmt = format_variable.format
-		sum = new Sum()
-		for in_fmt in fmts:
-			sum += get_conv_variable(view, in_fmt, out_fmt, conv_time)
-		add_equality_constraint(format_variable, sum)	
-
-	# User Prescription
-	for (fmt,kernel) in user_decisions:
-		format_variable = get_format_variable(view, fmt, kernel)
-		add_equality_constaint(format_variable, 1)
-\end{lstlisting}
-\Description[Algorithm for creating the model's decision variables and constraints.]{Algorithms for two functions, create variables and add constraints.}
-\end{figure}
 
 \begin{figure}
 \begin{lstlisting}[caption={Algorithm for constructing objective function.}, label={AlgObjFunc}]
@@ -450,7 +421,7 @@ add_objective_function(view):
 				obj_func += (coefficient * format_variable)
 	set_objective_function(obj_func)
 \end{lstlisting}
-\Description{Algorithm for the function to create the model's objective function. First it adds cost estimates for conveersions, then adds cost estimates for the accesses in the computation.}
+\Description{Algorithm for the function to create the model's objective function. First it adds cost estimates for conversions, then adds cost estimates for the accesses in the computation.}
 \end{figure}
 
 \section{Cost Estimation}
