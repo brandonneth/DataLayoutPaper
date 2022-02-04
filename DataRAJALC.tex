@@ -174,14 +174,14 @@ General purpose libraries like Kokkos and RAJA and programming languages like Ch
 Thus, programmers must use that particular data format for the entire computation.
 While a developer could change the data layout mid-computation in RAJA, the developer must either modify RAJA library code or use multiple arrays for the same data. 
 Both options increase the code complexity and increase its fragility.
-Even for the brave developer choosing one of these options, yet another obstactle remains: selecting the right combination of formats for the computation.
+Even for the brave developer choosing one of these options, yet another obstacle remains: selecting the right combination of formats for the computation.
 Even a modest computation of two loops using four 2D arrays has more than 200 combinations from which to choose, meaning trying out all possible options quickly becomes infeasible. 
 
 We extend the RAJA C++ library to address this gap in support for data layout optimizations.
 First, our extension exposes a lightweight API for implementing mid-computation data layout optimizations.
 For those with specific format changes in mind, two methods --- \verb.set_format_before. and \verb.set_format_after. --- ensure the appropriate format is used\footnote{Since the control is completely exposed, an autotuner can also try out different options.}.
 While the user can specify as many format requirements as they desire, any left unspecified are completed using a performance model.
-Guided by run-time microbenchmarking, the model selects format changes based on the solution of an Integer Linear Programming (ILP) problem that considers the cost of converting formats against the potential improvement with an alternative format.
+Guided by run-time microbenchmarking, the model selects format changes based on the solution of an Integer Linear Programming~(ILP) problem that considers the cost of converting formats against the potential improvement with an alternative format.
 Our inclusion of a performance model means a developer can obtain performance improvement without having to determine the sequence of format changes themselves or use an autotuner to try every possible option.
 
 This paper includes the following contributions:
