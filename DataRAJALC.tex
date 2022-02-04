@@ -129,7 +129,7 @@ How data is stored and accessed has always been recognized to have a significant
 For example, on a typical cache-based system, iterating through a two-dimensional array in column-order when data is 
 stored in row-order can lead to significant slowdown 
 Although mechanisms such as compiler optimizations (loop permutation/interchange) 
-and data layout policies like those in Kokkos~\citee{edwards2014kokkos} and RAJA~\citee{hornung2014RAJA} can align data layout with computation schedules, they become difficult to automate and laborious to manage by hand as the number of loops and arrays grow.
+and data layout policies like those in Kokkos~\cite{edwards2014kokkos} and RAJA~\cite{hornung2014RAJA} can align data layout with computation schedules, they become difficult to automate and laborious to manage by hand as the number of loops and arrays grow.
 
 In this paper, we present an approach for exposing data layout decisions to the programmer in the C++ portable, parallel library RAJA.
 The presented API allows the programmer to specify as many data layout decisions in a sequence of data-sharing loops (otherwise known as a loop chain~\cite{krieger2013loop}) as they choose.
