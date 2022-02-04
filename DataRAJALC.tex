@@ -1,16 +1,16 @@
 \documentclass[sigconf]{acmart}
 
-\begin{CCSXML}
-	<ccs2012>
-	   <concept>
-		   <concept_id>10011007.10011006.10011072</concept_id>
-		   <concept_desc>Software and its engineering~Software libraries and repositories</concept_desc>
-		   <concept_significance>500</concept_significance>
-		   </concept>
-	 </ccs2012>
-\end{CCSXML}
-	
-\ccsdesc[500]{Software and its engineering~Software libraries and repositories}
+%\begin{CCSXML}
+%	<ccs2012>
+%	   <concept>
+%		   <concept_id>10011007.10011006.10011072</concept_id>
+%		   <concept_desc>Software and its engineering~Software libraries and repositories</concept_desc>
+%		   <concept_significance>500</concept_significance>
+%		   </concept>
+%	 </ccs2012>
+%\end{CCSXML}
+%	
+%\ccsdesc[500]{Software and its engineering~Software libraries and repositories}
 \keywords{data layout, data optimization, loop chains, inter-loop optimization, performance model}
 \usepackage{array} 
 \usepackage{comment}
@@ -300,7 +300,7 @@ While RAJALC tackled the problem of scheduling optimizations, we target making d
 The new \verb.FormatDecisions. object is the central component of our system. 
 Its instantiation takes a tuple of references to Views that are possible targets of format changes and the kernel objects that constitute the whole computation.
 Two methods are used to register desired formats: \verb.set_format_before. and \verb.set_format_after..
-Both take the View to be reformated, the desired format, and the computation before or after which the desired format should be used.
+Both take the View to be reformatted, the desired format, and the computation before or after which the desired format should be used.
 Once all format choices are registered, the complete computation with the desired format conversions is generated using the \verb.finalize. method.
 
 
@@ -382,7 +382,7 @@ Four types of constraints are imposed on the decision variables.
 The objective function is constructed using the estimated cost of the format choices and conversions. 
 Each decision variable is assigned a cost coefficient in the following manner.
 First, we execute and time a small loop with similar access patterns to the choice, then cache the result for later decision variables.
-Second, we multiply the microprofiling result by the number of iterations the choice affects.
+Second, we multiply the result by the number of iterations the choice affects.
 For example, a conversion decision for \verb.B. in Listing~\ref{FormatDecisions3MM} would be multiplied by the dimensions of \verb.B..
 In contrast, a format decision for \verb.B. for \verb.knl1. would be multiplied by all three loop dimensions. 
 
@@ -423,7 +423,7 @@ add_objective_function(view):
 	\includegraphics[width=2\columnwidth]{FormatConversionFigure.pdf}
 	\caption{Formats, conversions, and decision variables for a 3 kernel computation. The green frames show example groups of variables that must sum to 1 due to the Format and Conversion Uniqueness Constraints. The red and blue underlines show examples of the Conversion-Format Matching constraints for input and output constraints respectively. }
 	\label{ConstraintExample}
-	\Description{5 columns titled kernels, formats, format varaibles, conversions, and conversion variables. The conversion columns are offset so that the conversions fall between the formats. A Green box surround the pair of variables fmt col major knl1 and fmt row major knl1. Another green box surrounds the conversion variables for conversion 1.} 
+	\Description{5 columns titled kernels, formats, format variables, conversions, and conversion variables. The conversion columns are offset so that the conversions fall between the formats. A Green box surround the pair of variables fmt col major knl1 and fmt row major knl1. Another green box surrounds the conversion variables for conversion 1.} 
 \end{figure*}
 \section{Cost Estimation}
 
@@ -486,7 +486,7 @@ The argument order describes the order of the loop iterators in the reference wi
 In Listing~\ref{MatMulTraversalOrder}, the references to \verb.A., \verb.B., and \verb.C. have argument orders $(0,2)$, $(2,1)$, and $(0,1)$, respectively. 
 The kernel policy order describes the order in which the iterators are increased. 
 This is equivalent to the nesting order of a loop.
-In Listing~\ref{MatMulTraversalOrder}, references made by \verb.knl1. have policy order $(0,1,2)$, while those mady by \verb.knl2. have policy order $(2,0,1)$.
+In Listing~\ref{MatMulTraversalOrder}, references made by \verb.knl1. have policy order $(0,1,2)$, while those may by \verb.knl2. have policy order $(2,0,1)$.
 The indices of the \verb.For. statements within the policy determine this order.
 The layout order describes the layout of data in memory. 
 In Listing~\ref{MatMulTraversalOrder}, \verb.A. has layout order $(0,1)$, \verb.B. has $(1,0)$, and \verb.C. has $(0,1)$.
@@ -522,7 +522,7 @@ Microbenchmark 3 is an access to a 3-dimensional View in a 4-dimensional loop fo
 Table~\ref{MicrobenchmarkDetails} summarizes them in more detail, including data sizes.
 The outermost loop is parallelized using OpenMP.
 All evaluation in this paper is performed on the same system. 
-We used a single node with a 44-core IBM Power9 CPU and 256GB of CPU memory.
+We used a single node with two 22-core IBM Power9 CPUs and 256GB of CPU memory.
 
 \begin{table}
 	\centering
@@ -582,7 +582,7 @@ All compilation used Clang version 13.0.0.
 
 \subsection{Experiment 1: Polybench}
 
-Our first experiment examined the performance and programmer productivy impacts of our contribution.
+Our first experiment examined the performance and programmer productivity impacts of our contribution.
 We targeted four benchmarks from the Polybench suite: \textsc{2mm}, \textsc{3mm}, \textsc{gemver}, and \textsc{mvt}.
 While other benchmarks in the suite have the potential for data layout optimization, they present imperfect nesting and non-constant loop bounds, which are not currently supported by our implementation. 
 For each benchmark, we implemented different variants and compared their relative speedup and the number of code changes necessary to go from the original implementation to the variant implementation.
