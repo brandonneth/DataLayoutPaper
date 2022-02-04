@@ -378,6 +378,11 @@ Four types of constraints are imposed on the decision variables.
 	\bigwedge\limits_{(k,f) \in U}  fmt_{f,k} = 1
 \end{align*}
 \end{itemize}
+Figure~\ref{ConstraintExample} shows the variables in a model for a 2D View for a computation with three kernels. 
+For each kernel, we see two decision variables, one for using column-major and one for using row-major. 
+Similarly, for each conversion point, we see four decision variables, one for each combination of input and output format. 
+The green boxes indicate the terms that are part of a Format Uniqueness constraint and a Conversion Uniqueness constraint.
+The red and blue underline shows the part of the format and conversion decision variables that group them in the Conversion-Format Matching constraints. 
 
 The objective function is constructed using the estimated cost of the format choices and conversions. 
 Each decision variable is assigned a cost coefficient in the following manner.
@@ -386,13 +391,15 @@ Second, we multiply the result by the number of iterations the choice affects.
 For example, a conversion decision for \verb.B. in Listing~\ref{FormatDecisions3MM} would be multiplied by the dimensions of \verb.B..
 In contrast, a format decision for \verb.B. for \verb.knl1. would be multiplied by all three loop dimensions. 
 
-While we can estimate the cost of format conversions without information about the kernels themselves, the cost of using a format for a computation depends on how that computation accesses the data.
+While we can estimate the cost of format conversions without information about the kernels themselves, the cost of using a format for a kernel depends on how that kernel accesses the data.
 Thus, we need to gather information about how each kernel accesses the data that may be transformed. 
 To do so, we use RAJALC's symbolic evaluation capabilities. 
 By defining an overloaded call operator in the View class, we can gather access information for each kernel at runtime. 
 Then, this access information is used to estimate the cost of using different formats. 
 Once all cost estimates are added to the objective function, we use the Integer Set Library~\cite{verdoolaege2010isl} to find the points in the space with the lowest overall cost estimates. 
-
+Listing~\ref{AlgObjFunc} shows a pseudocode algorithm for generating the objective function.
+Note that the costs associated with format variables are based on the uses of the Views within the computation. 
+Thus, if one kernel makes multiple accesses to the same View, it will have one cost term for each access.
 
 
 \begin{figure}
@@ -667,7 +674,7 @@ A model is more relatively accurate when choices with better model scores have l
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{2mm-all.pdf}
-	\caption{Execution time and model score of all possible format choices for the 2MM kernel. The model selects the choice with the lowest score. Outlier shown in red.}
+	\caption{Execution time and model score of all possible format choices for the 2MM kernel. The model selects the choice with the lowest score. Outlier shown in red. All dimension sizes are 1024.}
 	\label{2MMAllChoices}
 	\Description[Model Score and Execution Time]{Fully described in the text.}
 \end{figure}
