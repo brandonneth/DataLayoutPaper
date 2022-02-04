@@ -20,6 +20,7 @@
 \usepackage{setspace}
 
 \usepackage{listings}
+\usepackage{lstautogobble}
 \usepackage{subcaption}
 
 \usepackage{standalone}
@@ -436,8 +437,7 @@ We argue that the access order is an accurate predictive metric for the relative
 
 \subsection{Identifying an Access}
 \begin{figure}
-	\begin{lstlisting}[caption={Two implementations of matrix multiplication using different kernel policies.},
-		label={MatMulTraversalOrder}]
+	\begin{lstlisting}[caption={Two implementations of matrix multiplication using different kernel policies.}, autogobble, label={MatMulTraversalOrder}]
 		auto a_layout = make_permuted_layout(a_sizes, {{0,1}});
 		auto b_layout = make_permuted_layout(b_sizes, {{1,0}});
 		auto c_layout = make_permuted_layout(c_sizes, {{0,1}});
