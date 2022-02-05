@@ -713,6 +713,10 @@ An element of future work will support the simultaneous specification of data la
 Lastly, our approach to the data format problem herein only targets different dimension orderings for dense arrays. 
 This technique could be extended to work for sparse arrays as well. 
 
+Overall, data format is a key consideration when optimizing applications.
+Especially in performance portability libraries like RAJA, developers need tools to implement those optimizations without sacrificing productivity.
+Our API gives developers those tools.
+By combining declarative user specification of data format with runtime performance modeling, we can offer the performance improvements of data layout changes with significantly less developer effort.
 \balance
 
 \bibliographystyle{abbrv}
