@@ -20,6 +20,7 @@
 \usepackage{setspace}
 
 \usepackage{listings}
+\usepackage{lstautogobble}
 \usepackage{subcaption}
 
 \usepackage{standalone}
@@ -442,9 +443,8 @@ By using the access order instead of the full description of the access, referen
 We argue that the access order is an accurate predictive metric for the relative performance of a layout choice. 
 
 \subsection{Identifying an Access}
-\begin{figure}
-	\begin{lstlisting}[caption={Two implementations of matrix multiplication using different kernel policies.},
-		label={MatMulTraversalOrder}]
+\begin{figure}[tbp]
+	\begin{lstlisting}[caption={Two implementations of matrix multiplication using different kernel policies.}, autogobble, label={MatMulTraversalOrder}]
 		auto a_layout = make_permuted_layout(a_sizes, {{0,1}});
 		auto b_layout = make_permuted_layout(b_sizes, {{1,0}});
 		auto c_layout = make_permuted_layout(c_sizes, {{0,1}});
@@ -545,26 +545,29 @@ We used a single node with two 22-core IBM Power9 CPUs and 256GB of CPU memory.
 	\label{MicrobenchmarkDetails}
 \end{table}
 
-\begin{figure}
-	\includegraphics[width=\columnwidth]{benchmark1_boxplot.pdf}
+\begin{figure*}
+  \centering
+  \begin{subfigure}{.48\textwidth}
+	\includegraphics[width=\textwidth]{benchmark1_boxplot.pdf}
 	\caption{Box plots showing execution times for 3-dimensional loop accessing 3-dimensional view, grouped by access order. Each point represents a different combination of policy, layout, and argument orders. Each access order group is jittered.}
 	\label{AccessBenchmark1}
 	\Description[Access Order Execution Times Boxplot for Microbenchmark 1]{Fully described in the text.}
-\end{figure}
-
-\begin{figure}
-	\includegraphics[width=\columnwidth]{benchmark2_boxplot.pdf}
+  \end{subfigure}
+\begin{subfigure}{.48\textwidth}
+	\includegraphics[width=\textwidth]{benchmark2_boxplot.pdf}
 	\caption{Box plots showing execution times for 3-dimensional loop accessing 2-dimensional view, grouped by access order. Each point represents a different combination of policy, layout, and argument orders. Each access order group is jittered.}
 	\label{AccessBenchmark2}
 	\Description[Access Order Execution Time Boxplot for Microbenchmark 2]{Fully described in the text}
-\end{figure}
+\end{subfigure}
 
-\begin{figure}
-	\includegraphics[width=\columnwidth]{benchmark3_boxplot.pdf}
+\bigskip
+\begin{subfigure}{.48\textwidth}
+	\includegraphics[width=\textwidth]{benchmark3_boxplot.pdf}
 	\caption{Box plots showing execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order. Each point represents a different combination of policy, and layout for a fixed argument order. Each access order group is jittered.}
 	\label{AccessBenchmark3}
 	\Description[Access Order Execution Time Boxplot for Microbenchmark 3]{Fully described in the text}
-\end{figure}
+\end{subfigure}
+\end{figure*}
 
 Figure~\ref{AccessBenchmark1} shows the execution times for the different access orders for microbenchmark 1.
 Overall, the six possible access orders show good differentiation and clustering.
