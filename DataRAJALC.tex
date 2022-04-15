@@ -1,16 +1,16 @@
-\documentclass[sigconf]{acmart}
+\documentclass[sigconf,review=true]{acmart}
 
-\begin{CCSXML}
-	<ccs2012>
-	   <concept>
-		   <concept_id>10011007.10011006.10011072</concept_id>
-		   <concept_desc>Software and its engineering~Software libraries and repositories</concept_desc>
-		   <concept_significance>500</concept_significance>
-		   </concept>
-	 </ccs2012>
-\end{CCSXML}
-	
-\ccsdesc[500]{Software and its engineering~Software libraries and repositories}
+%\begin{CCSXML}
+%	<ccs2012>
+%	   <concept>
+%		   <concept_id>10011007.10011006.10011072</concept_id>
+%		   <concept_desc>Software and its engineering~Software libraries and repositories</concept_desc>
+%		   <concept_significance>500</concept_significance>
+%		   </concept>
+%	 </ccs2012>
+%\end{CCSXML}
+%	
+%\ccsdesc[500]{Software and its engineering~Software libraries and repositories}
 \keywords{data layout, data optimization, loop chains, inter-loop optimization, performance model}
 \usepackage{array} 
 \usepackage{comment}
@@ -20,6 +20,7 @@
 \usepackage{setspace}
 
 \usepackage{listings}
+\usepackage{lstautogobble}
 \usepackage{subcaption}
 
 \usepackage{standalone}
@@ -104,15 +105,16 @@ escapeinside={<@}{@>}
 \begin{abstract}
 
 The layout of data in memory is a key consideration in high performance computing applications.
-From reducing cache and page misses to relieving pressure on memory bandwidth and avoiding inter-process communication, good data layout improves performance at all levels of an application.
-RAJA, a C++ performance portability library, incorporates the layout of an application's data into its definition.
-Thus, a developer can try out different layouts without major refactoring costs.
+From reducing cache and page misses to relieving pressure on memory bandwidth and avoiding inter-process communication, using a good data layout improves performance at all levels of an application.
+RAJA, a C++ performance portability library, incorporates the layout of an application's data into its interface
+Thus, a developer can try different layouts without major refactoring costs.
 However, some applications benefit from changing the data layout mid-computation to facilitate better locality.
 Implementing such a mid-computation layout change in RAJA can improve performance, but is laborious to implement and lacks portability.
 This work remedies RAJA's shortcoming by introducing a lightweight, declarative API for changing data layouts between computations.
-Also, we present an automated layout decider that dynamically estimates performance using the loop bounds and data access order as input. 
-These systems work together, meaning the decider \enquote{fills in} layout choices not made by the user.
-This allows the user to specify as much or as little of the layout information as they please and still obtain the performance benefits of changing data layouts.  
+Also, we present a performance model for layouts using the loop bounds and data access order as input and a runtime interface that dynamically estimates performance to select an appropriate layout. 
+These systems combine so that the model and runtime \enquote{fill in} layout choices
+that the user did not specify.
+Thus the user can specify as much of the layout information as they please and still obtain the performance benefits of changing data layouts.  
 Further, our system is built directly into the RAJA library, meaning that no additional build steps are required.
 We evaluate our system on four benchmarks, where it achieves similar performance improvements to hand-implemented optimizations.
 \end{abstract}
@@ -128,19 +130,19 @@ How data is stored and accessed has always been recognized to have a significant
 For example, on a typical cache-based system, iterating through a two-dimensional array in column-order when data is 
 stored in row-order can lead to significant slowdown 
 Although mechanisms such as compiler optimizations (loop permutation/interchange) 
-and data layout policies like those in Kokkos \cite{edwards2014kokkos} and RAJA \cite{hornung2014RAJA} have the potential to align data layout with computation schedules, they become difficult to automate and laborious to manage by hand as the number of loops and arrays grow.
+and data layout policies like those in Kokkos~\cite{edwards2014kokkos} and RAJA~\cite{hornung2014RAJA} can align data layout with computation schedules, they become difficult to automate and laborious to manage by hand as the number of loops and arrays grow.
 
 In this paper, we present an approach for exposing data layout decisions to the programmer in the C++ portable, parallel library RAJA.
 The presented API allows the programmer to specify as many data layout decisions in a sequence of data-sharing loops (otherwise known as a loop chain~\cite{krieger2013loop}) as they choose.
 Then, using a portable cost model based on microbenchmarking, our system identifies any remaining layout changes estimated to improve performance.  
 
 
-Figure~\ref{IntroExample} shows how important good data layout is. 
+Figure~\ref{IntroExample} shows the importance of a good data layout. 
 The BadLayout column shows the execution time for a matrix multiplication where the three arrays are laid out opposite of their access order. 
 The GoodLayout column shows the execution time for the same matrix multiplication when the arrays are laid out to match their access order.
 The LayoutChange column shows the execution time of code that changes the layout from the bad layout to the good one.
-Finally, the SwitchAndRun column shows the combined execution times of changing the layout from bad to good and then running using the good layout.
-As the graph shows, there is significant performance improvement (72\%) simply by changing the data layout, and the cost of performing the layout change is small (<1\% of execution time). 
+Finally, the SwitchAndRun column shows the combined execution time of changing the layout from bad to good and then running.
+As the graph shows, performance improves  significantly (72\%) simply by changing the data layout, and the cost of performing the layout change is small (<1\% of execution time). 
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{IntroExampleGraph.pdf}
@@ -163,31 +165,31 @@ C/C++ languages;
 controls to users, leading to proposals to add pragma-based controls to OpenMP~\cite{kruse2019design} and Clang~\cite{kruse2018user}; and 
 (3) typically do not optimize across multiple loops well.
 
-The problem of inter-loop optimizations, especially those balancing parallelism and locality, has spawned a number of approaches. 
-Many approaches to this problem are built into the compiler, lacking a user-accessible interface.
+The problem of inter-loop optimizations, especially those that balance parallelism and locality, has spawned many approaches. 
+Approaches are often built into the compiler, lacking a user-accessible interface.
 Some use loop schedule transformations alone~\cite{wolf1991data,mckinley1996improving}, while others consider data layout transformations as well~\cite{cierniak1995unifying,kennedy1995automatic,kandemir1998improving,  chen2005constraint, chen2005integrating, ozturk2011data}.
 Other approaches develop or expand domain specific languages to expose controls to the user.
 Many such approaches target stencil codes~\cite{henretty2011data,kronawitter2018automatic,luporini2018design} and image processing~\cite{ragan-kelley2013halide,mullapudi2015polymage}.
 
-General purpose libraries like Kokkos and RAJA and programming languages like Chapel~\cite{diaconescu2007approach} give programmers some control over the data layout of multi-dimensional arrays, but this support is limited to the point of initialization.
-Thus, programmers are locked into that particular data format for the whole computation.
-While it is technically possible for a developer to change the data layout mid-computation in RAJA, doing so requires the developer to either modify RAJA library code or to use multiple arrays for the same data. 
+General purpose libraries like Kokkos and RAJA and programming languages like Chapel~\cite{diaconescu2007approach} give programmers some control over the data layout of multi-dimensional arrays. However, this support is limited to the point of initialization.
+Thus, programmers must use that particular data format for the entire computation.
+While a developer could change the data layout mid-computation in RAJA, the developer must either modify RAJA library code or use multiple arrays for the same data. 
 Both options increase the code complexity and increase its fragility.
-Even for the brave developer choosing one of these options, yet another obstactle remains: selecting the right combination of formats for the computation.
-For a modest computation of two loops using four 2D arrays, there are more than 200 combinations to choose from, meaning trying out all possible options quickly becomes infeasible. 
+Even for the brave developer choosing one of these options, yet another obstacle remains: selecting the right combination of formats for the computation.
+Even a modest computation of two loops using four 2D arrays has more than 200 combinations from which to choose, meaning trying out all possible options quickly becomes infeasible. 
 
-In this paper, we present an extension to the RAJA C++ library that addresses this gap in support for data layout optimizations.
+We extend the RAJA C++ library to address this gap in support for data layout optimizations.
 First, our extension exposes a lightweight API for implementing mid-computation data layout optimizations.
 For those with specific format changes in mind, two methods --- \verb.set_format_before. and \verb.set_format_after. --- ensure the appropriate format is used\footnote{Since the control is completely exposed, an autotuner can also try out different options.}.
 While the user can specify as many format requirements as they desire, any left unspecified are completed using a performance model.
-Guided by run-time microbenchmarking, the presented performance model selects remaining format changes by setting up and then solving an Integer Linear Programming (ILP) problem that considers the cost of converting formats against the potential improvement of using a more optimal format in different parts of the computation.
+Guided by run-time microbenchmarking, the model selects format changes based on the solution of an Integer Linear Programming~(ILP) problem that considers the cost of converting formats against the potential improvement with an alternative format.
 Our inclusion of a performance model means a developer can obtain performance improvement without having to determine the sequence of format changes themselves or use an autotuner to try every possible option.
 
 This paper includes the following contributions:
 \begin{itemize}
-\item An API in RAJA for specifying data layouts and data layout transformations.
-\item A performance model to select data layouts based on runtime microbenchmarking and a data layout transformation strategy for a loop chain.
-\item An optimization that increases the reuse of microbenchmarking information.
+\item An API in RAJA for specifying data layouts and data layout transformations;
+\item A performance model to select data layouts based on runtime microbenchmarking and a data layout transformation strategy for a loop chain;
+\item An optimization that increases the reuse of microbenchmarking information; and
 \item Performance results and source lines of code (SLOC) for five variants of four benchmark kernels comparing hand-implemented optimizations to our system.
 \end{itemize} 
 
@@ -287,7 +289,7 @@ Looking at the two references to \verb.F. in kernels two and three, we can see t
 Because different formats are optimal for different kernels, this creates an opportunity for optimization. 
 
 However, RAJA's built-in support for changing data layouts is minimal. 
-While Views can be instatiated with different layouts, changing the layout of an existing View is not as simple.
+While Views can be instantiated with different layouts, changing the layout of an existing View is not as simple.
 This is because changing layouts also requires reordering the underlying data to match the new layout. 
 To implement such a layout change by hand requires the programmer to allocate a new temporary array, 
 copy the data from the View to the temporary array in the right order, 
@@ -299,8 +301,8 @@ While RAJALC tackled the problem of scheduling optimizations, we target making d
 The new \verb.FormatDecisions. object is the central component of our system. 
 Its instantiation takes a tuple of references to Views that are possible targets of format changes and the kernel objects that constitute the whole computation.
 Two methods are used to register desired formats: \verb.set_format_before. and \verb.set_format_after..
-Both take the View to be reformated, the desired format, and the computation before or after which the desired format should be used.
-Once all the format choices are registered, the complete computation with the desired format conversions is generated using the \verb.finalize. method.
+Both take the View to be reformatted, the desired format, and the computation before or after which the desired format should be used.
+Once all format choices are registered, the complete computation with the desired format conversions is generated using the \verb.finalize. method.
 
 
 \begin{figure}
@@ -340,64 +342,65 @@ We encode the problem as an integer linear program where the solution represents
 
 We use binary decision variables representing whether or not a particular format is used at different points in the chain. 
 For example, there are eight decision variables for the \verb.B. View in Listing~\ref{FormatDecisions3MM}, one for each of the two possible formats at each of the four points in the chain. 
-While there are only three kernels in the chain, there is an additional point added for the \enquote{output} format that the View has after the computation is done. 
+While there are only three kernels in the chain, there is an additional point added for the \enquote{output} format that the View has after the computation is done.
+We also add constant variables for the format when the computation begins. 
 We also use decision variables to represent the required format conversions.
+We construct separate models for each View in the computation. 
+
+Symbolically, we represent the variables as follows.
+To start, let $F$, $K$, and $T$ represent the set of all formats, kernels, and conversion times.
+Because we add additional elements to $K$ for the input and output formats, we know that $|K|$ is the number of user kernels plus 2.
+Furthermore, because there is one more conversion than kernel, we know that $|T| = |K| + 1$.
+For each kernel, we have one variable for each format. 
+Thus, let $fmt_{f,k}$ denote the variable for using the format $f$ during kernel $k$, where $f \in F$ and $k \in K$.
+For conversion variables, we have one variable for each possible conversion at each time point. 
+Thus, let $conv_{i,o,t}$ denote the decision variable for converting from format $i$ to to format $o$ at conversion time $t$, where $i,o \in F$ and $t \in T$.
 
 Four types of constraints are imposed on the decision variables.
 \begin{itemize}
-\item Format Uniqueness: At each time point, every View has exactly one selected format. 
-\item Conversion Uniqueness: At each conversion point, every View goes through exactly one conversion.
-\item Format-Conversion Matching: At each conversion point, the input format for the conversion matches the format of the immediately preceding kernel. Similarly, the output format for the conversion matches the format of the immediately succeeding kernel.
-\item User Prescription: All user-provided format choices are met.
-\end{itemize}
-
-We construct separate models for each View in the computation. 
-Symbolically, we can construct the model's constraints as follows.
-To start, let $F$, $K$, and $T$ represent the set of all formats, kernels, and conversion times.
-Because there is one more conversion than kernel, we know that $|T| = |K| + 1$.
-Furthermore, we add an extra elements to $K$ to represent the formats before any computation occurs and after all the computations are complete.
-Next, we can enumerate our decision variables.
-For the format decision variables, we have one per format per computation. 
-Let $fmt_{f,k}$ denote the variable for using the format $f$ during kernel $k$.
-Similarly for the conversion decision variables, let $conv_{i,o,t}$ denote the decision variable for converting from format $i$ to to format $o$ at conversion time $t$.
-With our variables defined, we can add our constraints.
-The Format Uniqueness constraints are given by:
+\item Format Uniqueness: At each time point, the View has exactly one selected format. Given by: 
 \begin{align*}
 	\bigwedge\limits_{k \in K} (1 = \sum\limits_{f \in F} fmt_{f,k})
 \end{align*}
-Conversion Uniqueness constraints are similar:
+\item Conversion Uniqueness: At each conversion point, the View goes through exactly one conversion. Given by:
 \begin{align*}
 	\bigwedge\limits_{t \in T} (1 = \sum\limits_{i \in F}\sum\limits_{o \in F} conv_{i,o,t})
 \end{align*}
-Format Conversion Matching constraints have two parts. 
-The first matches the inputs of the conversions to the format at the preceding kernel:
+\item Format-Conversion Matching, Input: At each conversion point, the input format for the conversion matches the format of the preceding kernel. Given by:
 \begin{align*}
 	\bigwedge\limits_{t \in T} \bigwedge\limits_{i \in F} fmt_{i,t.prev} = \sum\limits_{o \in F} conv_{i,o,t}
 \end{align*}
-In this formulation, $t.prev$ represents the kernel before $t$. 
-Outputs are matched similarly:
+\item Format-Conversion Matching, Output: At each conversion point, the output format for the conversion matches the format of the following kernel. Given by:
 \begin{align*}
 	\bigwedge\limits_{t \in T} \bigwedge\limits_{o \in F} fmt_{o,t.next} = \sum\limits_{i \in F} conv_{i,o,t}
 \end{align*}
-Finally, if we represent all the user choices $U$ as pairs of kernels and the formats the user wants, we can represent the constraints as:
+\item User Prescription: All user-provided format choices are met. With all user choices $U$ represented as pairs of kernels and the format the user wants for that kernel, given by:
 \begin{align*}
 	\bigwedge\limits_{(k,f) \in U}  fmt_{f,k} = 1
 \end{align*}
+\end{itemize}
+Figure~\ref{ConstraintExample} shows the variables in a model for a 2D View for a computation with three kernels. 
+For each kernel, we see two decision variables, one for using column-major and one for using row-major. 
+Similarly, for each conversion point, we see four decision variables, one for each combination of input and output format. 
+The green boxes indicate the terms that are part of a Format Uniqueness constraint and a Conversion Uniqueness constraint.
+The red and blue underline shows the part of the format and conversion decision variables that group them in the Conversion-Format Matching constraints. 
 
 The objective function is constructed using the estimated cost of the format choices and conversions. 
 Each decision variable is assigned a cost coefficient in the following manner.
 First, we execute and time a small loop with similar access patterns to the choice, then cache the result for later decision variables.
-Second, we multiply the microprofiling result by the number of iterations the choice affects.
+Second, we multiply the result by the number of iterations the choice affects.
 For example, a conversion decision for \verb.B. in Listing~\ref{FormatDecisions3MM} would be multiplied by the dimensions of \verb.B..
 In contrast, a format decision for \verb.B. for \verb.knl1. would be multiplied by all three loop dimensions. 
 
-While we can estimate the cost of format conversions without information about the kernels themselves, the cost of using a format for a computation depends on how that computation accesses the data.
+While we can estimate the cost of format conversions without information about the kernels themselves, the cost of using a format for a kernel depends on how that kernel accesses the data.
 Thus, we need to gather information about how each kernel accesses the data that may be transformed. 
 To do so, we use RAJALC's symbolic evaluation capabilities. 
 By defining an overloaded call operator in the View class, we can gather access information for each kernel at runtime. 
 Then, this access information is used to estimate the cost of using different formats. 
-Once all the cost estimates are added to the objective function, we use the Integer Set Library~\cite{verdoolaege2010isl} to find the points in the space with the lowest overall cost estimates. 
-
+Once all cost estimates are added to the objective function, we use the Integer Set Library~\cite{verdoolaege2010isl} to find the points in the space with the lowest overall cost estimates. 
+Listing~\ref{AlgObjFunc} shows a pseudocode algorithm for generating the objective function.
+Note that the costs associated with format variables are based on the uses of the Views within the computation. 
+Thus, if one kernel makes multiple accesses to the same View, it will have one cost term for each access.
 
 
 \begin{figure}
@@ -424,21 +427,24 @@ add_objective_function(view):
 \Description{Algorithm for the function to create the model's objective function. First it adds cost estimates for conversions, then adds cost estimates for the accesses in the computation.}
 \end{figure}
 
+\begin{figure*}
+	\includegraphics[width=2\columnwidth]{FormatConversionFigure.pdf}
+	\caption{Formats, conversions, and decision variables for a 3 kernel computation. The green frames show example groups of variables that must sum to 1 due to the Format and Conversion Uniqueness Constraints. The red and blue underlines show examples of the Conversion-Format Matching constraints for input and output constraints respectively. }
+	\label{ConstraintExample}
+	\Description{5 columns titled kernels, formats, format variables, conversions, and conversion variables. The conversion columns are offset so that the conversions fall between the formats. A Green box surround the pair of variables fmt col major knl1 and fmt row major knl1. Another green box surrounds the conversion variables for conversion 1.} 
+\end{figure*}
 \section{Cost Estimation}
-
 
 Because our system uses microbenchmarking to estimate the cost of different layouts, the overhead can meaningfully impact overall performance. 
 To mitigate this effect, we reuse the microbenchmarking results as much as possible.
- 
 To maximize reuse, we model choices based on their access order, which describes the order in which iterations access data in memory.
 
 By using the access order instead of the full description of the access, references to different Views can be modeled with the same estimates, even if they have different argument or policy orders.
 We argue that the access order is an accurate predictive metric for the relative performance of a layout choice. 
 
 \subsection{Identifying an Access}
-\begin{figure}
-	\begin{lstlisting}[caption={Two implementations of matrix multiplication using different kernel policies.},
-		label={MatMulTraversalOrder}]
+\begin{figure}[tbp]
+	\begin{lstlisting}[caption={Two implementations of matrix multiplication using different kernel policies.}, autogobble, label={MatMulTraversalOrder}]
 		auto a_layout = make_permuted_layout(a_sizes, {{0,1}});
 		auto b_layout = make_permuted_layout(b_sizes, {{1,0}});
 		auto c_layout = make_permuted_layout(c_sizes, {{0,1}});
@@ -487,7 +493,7 @@ The argument order describes the order of the loop iterators in the reference wi
 In Listing~\ref{MatMulTraversalOrder}, the references to \verb.A., \verb.B., and \verb.C. have argument orders $(0,2)$, $(2,1)$, and $(0,1)$, respectively. 
 The kernel policy order describes the order in which the iterators are increased. 
 This is equivalent to the nesting order of a loop.
-In Listing~\ref{MatMulTraversalOrder}, references made by \verb.knl1. have policy order $(0,1,2)$, while those mady by \verb.knl2. have policy order $(2,0,1)$.
+In Listing~\ref{MatMulTraversalOrder}, references made by \verb.knl1. have policy order $(0,1,2)$, while those may by \verb.knl2. have policy order $(2,0,1)$.
 The indices of the \verb.For. statements within the policy determine this order.
 The layout order describes the layout of data in memory. 
 In Listing~\ref{MatMulTraversalOrder}, \verb.A. has layout order $(0,1)$, \verb.B. has $(1,0)$, and \verb.C. has $(0,1)$.
@@ -517,31 +523,51 @@ We support this claim empirically using performance data from three microbenchma
 For each microbenchmark, we record the 5-run average execution time of all combinations of policy, layout, and argument order. 
 These execution times are then grouped by access order.
 If our claim is valid, then the execution times for each access order will cluster and the groups of execution times will not overlap.
-Microbenchmark 1 is an access to a 3-dimensional view in a 3-dimensional loop. 
-Microbenchmark 2 is an access to a 2-dimensional view in a 3-dimensional loop, as in a matrix multiplication.
-Microbenchmark 3 is an access to a 3-dimensional view in a 4-dimensional loop for a set argument order.
+Microbenchmark 1 is an access to a 3-dimensional View in a 3-dimensional loop. 
+Microbenchmark 2 is an access to a 2-dimensional View in a 3-dimensional loop, as in a matrix multiplication.
+Microbenchmark 3 is an access to a 3-dimensional View in a 4-dimensional loop for a set argument order.
+Table~\ref{MicrobenchmarkDetails} summarizes them in more detail, including data sizes.
 The outermost loop is parallelized using OpenMP.
+All evaluation in this paper is performed on the same system. 
+We used a single node with two 22-core IBM Power9 CPUs and 256GB of CPU memory.
 
-\begin{figure}
-	\includegraphics[width=\columnwidth]{benchmark1_boxplot.pdf}
-	\caption{Box plot showing execution times for 3-dimensional loop accessing 3-dimensional view, grouped by access order. Each point represents a different combination of policy, layout, and argument orders. Each access order group is jittered.}
+\begin{table}
+	\centering
+	\begin{tabular}{p{2.2cm}|p{1.6cm}|p{1.6cm}|p{1.5cm}}
+
+		\raggedright Microbenchmark \linebreak Number & \raggedright \# View \linebreak Dimensions & \raggedright \# Loop \linebreak Dimensions & \raggedright Size per \linebreak Dimension \tabularnewline
+		\hline
+		1 & 3 & 3 & 128 \\
+		2 & 2 & 3 & 512 \\
+		3 & 3 & 4 & 64 
+	\end{tabular}
+	\caption{Microbenchmark details.}
+	\label{MicrobenchmarkDetails}
+\end{table}
+
+\begin{figure*}
+  \centering
+  \begin{subfigure}{.48\textwidth}
+	\includegraphics[width=\textwidth]{benchmark1_boxplot.pdf}
+	\caption{Box plots showing execution times for 3-dimensional loop accessing 3-dimensional view, grouped by access order. Each point represents a different combination of policy, layout, and argument orders. Each access order group is jittered.}
 	\label{AccessBenchmark1}
 	\Description[Access Order Execution Times Boxplot for Microbenchmark 1]{Fully described in the text.}
-\end{figure}
-
-\begin{figure}
-	\includegraphics[width=\columnwidth]{benchmark2_boxplot.pdf}
-	\caption{Box plot showing execution times for 3-dimensional loop accessing 2-dimensional view, grouped by access order. Each point represents a different combination of policy, layout, and argument orders. Each access order group is jittered.}
+  \end{subfigure}
+\begin{subfigure}{.48\textwidth}
+	\includegraphics[width=\textwidth]{benchmark2_boxplot.pdf}
+	\caption{Box plots showing execution times for 3-dimensional loop accessing 2-dimensional view, grouped by access order. Each point represents a different combination of policy, layout, and argument orders. Each access order group is jittered.}
 	\label{AccessBenchmark2}
 	\Description[Access Order Execution Time Boxplot for Microbenchmark 2]{Fully described in the text}
-\end{figure}
+\end{subfigure}
 
-\begin{figure}
-	\includegraphics[width=\columnwidth]{benchmark3_boxplot.pdf}
-	\caption{Box plot showing execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order. Each point represents a different combination of policy, and layout for a fixed argument order. Each access order group is jittered.}
+\bigskip
+\begin{subfigure}{.48\textwidth}
+	\includegraphics[width=\textwidth]{benchmark3_boxplot.pdf}
+	\caption{Box plots showing execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order. Each point represents a different combination of policy, and layout for a fixed argument order. Each access order group is jittered.}
 	\label{AccessBenchmark3}
 	\Description[Access Order Execution Time Boxplot for Microbenchmark 3]{Fully described in the text}
-\end{figure}
+\end{subfigure}
+\end{figure*}
 
 Figure~\ref{AccessBenchmark1} shows the execution times for the different access orders for microbenchmark 1.
 Overall, the six possible access orders show good differentiation and clustering.
@@ -566,11 +592,11 @@ All compilation used Clang version 13.0.0.
 
 \subsection{Experiment 1: Polybench}
 
-Our first experiment examined the performance and programmer productivy impacts of our contribution.
+Our first experiment examined the performance and programmer productivity impacts of our contribution.
 We targeted four benchmarks from the Polybench suite: \textsc{2mm}, \textsc{3mm}, \textsc{gemver}, and \textsc{mvt}.
 While other benchmarks in the suite have the potential for data layout optimization, they present imperfect nesting and non-constant loop bounds, which are not currently supported by our implementation. 
 For each benchmark, we implemented different variants and compared their relative speedup and the number of code changes necessary to go from the original implementation to the variant implementation.
-We used RAJAPerf~\cite{hornung2017raja} to run our experiments.
+We used RAJAPerf~\cite{hornung2017raja} to run our experiments with default data sizes.
 
 \textsc{2mm} solves the matrix expression $A*B*C$ using two matrix multiplications. 
 First, it computes $A*B$ and stores the results in a temporary array.
@@ -651,7 +677,7 @@ A model is more relatively accurate when choices with better model scores have l
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{2mm-all.pdf}
-	\caption{Execution time and model score of all possible format choices for the 2MM kernel. The model selects the choice with the lowest score. Outlier shown in red.}
+	\caption{Execution time and model score of all possible format choices for the 2MM kernel. The model selects the choice with the lowest score. Outlier shown in red. All dimension sizes are 1024.}
 	\label{2MMAllChoices}
 	\Description[Model Score and Execution Time]{Fully described in the text.}
 \end{figure}
@@ -687,6 +713,10 @@ An element of future work will support the simultaneous specification of data la
 Lastly, our approach to the data format problem herein only targets different dimension orderings for dense arrays. 
 This technique could be extended to work for sparse arrays as well. 
 
+Overall, data format is a key consideration when optimizing applications.
+Especially in performance portability libraries like RAJA, developers need tools to implement those optimizations without sacrificing productivity.
+Our API gives developers those tools.
+By combining declarative user specification of data format with runtime performance modeling, we can offer the performance improvements of data layout changes with significantly less developer effort.
 \balance
 
 \bibliographystyle{abbrv}
