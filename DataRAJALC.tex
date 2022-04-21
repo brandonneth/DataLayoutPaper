@@ -111,9 +111,8 @@ Thus, a developer can try different layouts without major refactoring costs.
 However, some applications benefit from changing the data layout mid-computation to facilitate better locality.
 Implementing such a mid-computation layout change in RAJA can improve performance, but is laborious to implement and lacks portability.
 This work remedies RAJA's shortcoming by introducing a lightweight, declarative API for changing data layouts between computations.
-Also, we present a performance model for layouts using the loop bounds and data access order as input and a runtime interface that dynamically estimates performance to select an appropriate layout. 
-These systems combine so that the model and runtime \enquote{fill in} layout choices
-that the user did not specify.
+Then, bringing existing compiler technology into the library interface, we use a runtime performance model that estimates the cost of additional layout changes.
+These systems combine so that the model and runtime \enquote{fill in} layout choices that the user did not specify.
 Thus the user can specify as much of the layout information as they please and still obtain the performance benefits of changing data layouts.  
 Further, our system is built directly into the RAJA library, meaning that no additional build steps are required.
 We evaluate our system on four benchmarks, where it achieves similar performance improvements to hand-implemented optimizations.
@@ -135,7 +134,6 @@ and data layout policies like those in Kokkos~\cite{edwards2014kokkos} and RAJA~
 In this paper, we present an approach for exposing data layout decisions to the programmer in the C++ portable, parallel library RAJA.
 The presented API allows the programmer to specify as many data layout decisions in a sequence of data-sharing loops (otherwise known as a loop chain~\cite{krieger2013loop}) as they choose.
 Then, using a portable cost model based on microbenchmarking, our system identifies any remaining layout changes estimated to improve performance.  
-
 
 Figure~\ref{IntroExample} shows the importance of a good data layout. 
 The BadLayout column shows the execution time for a matrix multiplication where the three arrays are laid out opposite of their access order. 
@@ -161,6 +159,18 @@ Both options increase the code complexity and increase its fragility.
 Even for the brave developer choosing one of these options, yet another obstacle remains: selecting the right combination of formats for the computation.
 Even a modest computation of two loops using four 2D arrays has more than 200 combinations from which to choose, meaning trying out all possible options quickly becomes infeasible. 
 
+There is a significant body of work that developed ILP problems for determining data layouts in distributed memory settings for programming languages like HPF and D~\cite{bixby1994automatic,kennedy1995automatic,kennedy1998automatic}. 
+A similar line of work~\cite{chen2004ilp,chen2005constraint,chen2005integrating, ozturk2011data} uses ILP-based constraint networks to combine data layout and schedule optimizations. 
+Both of these approaches were developed in the context of a compiler. 
+An important idea from this work we build on are automating data layout decisions (partially or fully) through the use of a performance model encoded as the objective function in an ILP problem.
+They key difference is that we are providing this data layout compiler technology to the user through a library interface, rather than applying it automatically in a compiler. 
+As such, there are advantages to exposing more control to the user. 
+There are additional challenges as well: a library needs to do its analysis and decision making at runtime and the interface provided to the user should be high-level while still providing enough control. 
+These challenges lead to a number of sub problems such as interface design so that the library implementation can do the analysis needed and quickly enough while maintaining ease of use.
+A compiler approach can take longer and has all of the information that the language semantics provide.
+Some advantages of a library approach are that it is more accessible to users and the library implementation will have more information available, such as loop bounds, accessible at runtime before a loop executes.
+Although useful advantages, these lead to further sub problems about how the library implementation can most leverage the compiler of the language it is embedded in (C++ here) to force as much specialization as possible to achieve the ultimate goal of performance.
+
 We extend the RAJA C++ library to address this gap in support for data layout optimizations.
 First, our extension exposes a lightweight API for implementing mid-computation data layout optimizations.
 For those with specific format changes in mind, two methods --- \verb.set_format_before. and \verb.set_format_after. --- ensure the appropriate format is used\footnote{Since the control is completely exposed, an autotuner can also try out different options.}.
@@ -176,36 +186,6 @@ This paper includes the following contributions:
 \item Performance results and source lines of code (SLOC) for five variants of four benchmark kernels comparing hand-implemented optimizations to our system.
 \end{itemize} 
 
-
-
-\section{Related Work}
-
-The importance of good data layout has spawned a substantial body of work developing techniques for the selection and application of data layout transformations.
-
-While early approaches~\cite{wolf1991data,mckinley1996improving} use only schedule transformations like loop interchange to improve locality, the global nature of schedule transformations can improve the accesses to one array while harming those to another. 
-This problem is addressed by using data layout transformations instead. 
-
-There is a significant body of work that developed ILP problems for determining data layouts in distributed memory settings for programming languages like HPF and D~\cite{bixby1994automatic,kennedy1995automatic,kennedy1998automatic}. 
-A similar line of work~\cite{chen2004ilp,chen2005constraint,chen2005integrating, ozturk2011data} uses ILP-based constraint networks to combine data layout and schedule optimizations. 
-Both of these approaches were developed in the context of a compiler. 
-An important idea from this work we build on are automating data layout decisions (partially or fully) through the use of a performance model encoded as the objective function in an ILP problem.
-They key difference is that we are providing this data layout compiler technology to the user through a library interface, rather than applying it automatically in a compiler. 
-As such, there are advantages to exposing more control to the user. 
-There are additional challenges as well: a library needs to do its analysis and decision making at runtime and the interface provided to the user should be high-level while still providing enough control. 
-These challenges lead to a number of sub problems such as interface design so that the library implementation can do the analysis needed and quickly enough while maintaining ease of use.
-A compiler approach can take longer and has all of the information that the language semantics provide.
-Some advantages of a library approach are that it is more accessible to users and the library implementation will have more information available, such as loop bounds, accessible at runtime before a loop executes.
-Although useful advantages, these lead to further sub problems about how the library implementation can most leverage the compiler of the language it is embedded in (C++ here) to force as much specialization as possible to achieve the ultimate goal of performance.
-
-More recent work has taken a similar compiler-based approach to data layout transformations.
-With the advent of general-purpose GPU programming, data layout transformations have been used to improve vectorization~\cite{henretty2011data} and memory bottlenecks~\cite{sung2010data}.
-
-Pragmas have been suggested as a solution to this problem of providing control over the transformations to the user.
-Proposals to add such pragmas have been submitted to OpenMP~\cite{kruse2019design} and Clang~\cite{kruse2018user}.
-Other work has implemented transformation pragmas into a source-to-source compiler~\cite{xu2014semi}. 
-\todo{differentiate. something about these still being compiler-based transformations rather than library-based approaches}
-Finally, domain-specific language approaches have been used to expose data layout transformations to the programmer domains such as stencil computations~\cite{kronawitter2018automatic}.
-\todo{differentiate}
 
 %%%%%%%%%%%%%%%
 \section{RAJA and RAJALC}
@@ -707,6 +687,39 @@ While their execution times do cluster, there is still variability in their dist
 When there are multiple choices with   the best model score, the final choice is random amongst them.
 Future work will need to develop a procedure for making a more intelligent selection among the well-scoring options. 
 This may involve considering the cache interactions of the different references in a kernel. 
+
+
+
+
+
+\section{Related Work}
+
+The importance of good data layout has spawned a substantial body of work developing techniques for the selection and application of data layout transformations.
+
+While early approaches~\cite{wolf1991data,mckinley1996improving} use only schedule transformations like loop interchange to improve locality, the global nature of schedule transformations can improve the accesses to one array while harming those to another. 
+This problem is addressed by using data layout transformations instead. 
+
+There is a significant body of work that developed ILP problems for determining data layouts in distributed memory settings for programming languages like HPF and D~\cite{bixby1994automatic,kennedy1995automatic,kennedy1998automatic}. 
+A similar line of work~\cite{chen2004ilp,chen2005constraint,chen2005integrating, ozturk2011data} uses ILP-based constraint networks to combine data layout and schedule optimizations. 
+Both of these approaches were developed in the context of a compiler. 
+An important idea from this work we build on are automating data layout decisions (partially or fully) through the use of a performance model encoded as the objective function in an ILP problem.
+They key difference is that we are providing this data layout compiler technology to the user through a library interface, rather than applying it automatically in a compiler. 
+As such, there are advantages to exposing more control to the user. 
+There are additional challenges as well: a library needs to do its analysis and decision making at runtime and the interface provided to the user should be high-level while still providing enough control. 
+These challenges lead to a number of sub problems such as interface design so that the library implementation can do the analysis needed and quickly enough while maintaining ease of use.
+A compiler approach can take longer and has all of the information that the language semantics provide.
+Some advantages of a library approach are that it is more accessible to users and the library implementation will have more information available, such as loop bounds, accessible at runtime before a loop executes.
+Although useful advantages, these lead to further sub problems about how the library implementation can most leverage the compiler of the language it is embedded in (C++ here) to force as much specialization as possible to achieve the ultimate goal of performance.
+
+More recent work has taken a similar compiler-based approach to data layout transformations.
+With the advent of general-purpose GPU programming, data layout transformations have been used to improve vectorization~\cite{henretty2011data} and memory bottlenecks~\cite{sung2010data}.
+
+Pragmas have been suggested as a solution to this problem of providing control over the transformations to the user.
+Proposals to add such pragmas have been submitted to OpenMP~\cite{kruse2019design} and Clang~\cite{kruse2018user}.
+Other work has implemented transformation pragmas into a source-to-source compiler~\cite{xu2014semi}. 
+\todo{differentiate. something about these still being compiler-based transformations rather than library-based approaches}
+Finally, domain-specific language approaches have been used to expose data layout transformations to the programmer domains such as stencil computations~\cite{kronawitter2018automatic}.
+\todo{differentiate}
 
 
 \section{Conclusion}
