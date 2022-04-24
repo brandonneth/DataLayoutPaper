@@ -701,11 +701,11 @@ The importance of good data layout has spawned a substantial body of work develo
 While early approaches~\cite{wolf1991data,mckinley1996improving} use only schedule transformations like loop interchange to improve locality, the global nature of schedule transformations can improve the accesses to one array while harming those to another. 
 This problem is addressed by using data layout transformations instead. 
 
-There is a significant body of work that developed ILP problems for determining data layouts in distributed memory settings for programming languages like HPF and D~\cite{bixby1994automatic,kennedy1995automatic,kennedy1998automatic}. 
+Much prior work has developed ILP problems to guide determination of data layouts in distributed memory settings for programming languages like HPF and D~\cite{bixby1994automatic,kennedy1995automatic,kennedy1998automatic}. 
 A similar line of work~\cite{chen2004ilp,chen2005constraint,chen2005integrating, ozturk2011data} uses ILP-based constraint networks to combine data layout and schedule optimizations. 
 Both of these approaches were developed in the context of a compiler. 
-An important idea from this work we build on are automating data layout decisions (partially or fully) through the use of a performance model encoded as the objective function in an ILP problem.
-They key difference is that we are providing this data layout compiler technology to the user through a library interface, rather than applying it automatically in a compiler. 
+We build on their approach of automating data layout decisions (partially or fully) through the use of a performance model encoded as the objective function in an ILP problem.
+They key difference is that we provide this data layout compiler technology to the user through a library interface, rather than only applying it automatically. 
 As such, there are advantages to exposing more control to the user. 
 There are additional challenges as well: a library needs to do its analysis and decision making at runtime and the interface provided to the user should be high-level while still providing enough control. 
 These challenges lead to a number of sub problems such as interface design so that the library implementation can do the analysis needed and quickly enough while maintaining ease of use.
