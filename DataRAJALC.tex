@@ -705,13 +705,14 @@ Much prior work has developed ILP problems to guide determination of data layout
 A similar line of work~\cite{chen2004ilp,chen2005constraint,chen2005integrating, ozturk2011data} uses ILP-based constraint networks to combine data layout and schedule optimizations. 
 Both of these approaches were developed in the context of a compiler. 
 We build on their approach of automating data layout decisions (partially or fully) through the use of a performance model encoded as the objective function in an ILP problem.
-They key difference is that we provide this data layout compiler technology to the user through a library interface, rather than only applying it automatically. 
-As such, there are advantages to exposing more control to the user. 
-There are additional challenges as well: a library needs to do its analysis and decision making at runtime and the interface provided to the user should be high-level while still providing enough control. 
-These challenges lead to a number of sub problems such as interface design so that the library implementation can do the analysis needed and quickly enough while maintaining ease of use.
-A compiler approach can take longer and has all of the information that the language semantics provide.
-Some advantages of a library approach are that it is more accessible to users and the library implementation will have more information available, such as loop bounds, accessible at runtime before a loop executes.
-Although useful advantages, these lead to further sub problems about how the library implementation can most leverage the compiler of the language it is embedded in (C++ here) to force as much specialization as possible to achieve the ultimate goal of performance.
+They key difference is that we provide this data layout compiler technology to the user through a library interface, rather than only applying it automatically.
+%% BRONIS: I don't see the advantage of repeating identical text
+%% As such, there are advantages to exposing more control to the user. 
+%% There are additional challenges as well: a library needs to do its analysis and decision making at runtime and the interface provided to the user should be high-level while still providing enough control. 
+%% These challenges lead to a number of sub problems such as interface design so that the library implementation can do the analysis needed and quickly enough while maintaining ease of use.
+%% A compiler approach can take longer and has all of the information that the language semantics provide.
+%% Some advantages of a library approach are that it is more accessible to users and the library implementation will have more information available, such as loop bounds, accessible at runtime before a loop executes.
+%% Although useful advantages, these lead to further sub problems about how the library implementation can most leverage the compiler of the language it is embedded in (C++ here) to force as much specialization as possible to achieve the ultimate goal of performance.
 
 More recent work has taken a similar compiler-based approach to data layout transformations.
 With the advent of general-purpose GPU programming, data layout transformations have been used to improve vectorization~\cite{henretty2011data} and memory bottlenecks~\cite{sung2010data}.
