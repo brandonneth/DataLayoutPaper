@@ -260,15 +260,14 @@ After the computation objects are created on lines 30 through 32, they are execu
 RAJA also provides an array wrapper class called a View.
 The View object has a number of capabilities that make it a valuable tool within RAJA codes.
 First, Views use the call operator to perform memory accesses. 
-By overloading this call operator for symbolic iterator types, RAJALC enabled the runtime symbolic evaluation of kernels that use Views.
-RAJALC used the access information gathered from symbolic evaluation to ensure the correctness of its scheduling optimizations.
+By overloading this call operator for symbolic iterator types, RAJALC enables the runtime symbolic evaluation of kernels that use Views.
+RAJALC uses the access information gathered from symbolic evaluation to ensure the correctness of its scheduling optimizations.
 This work uses RAJALC's runtime symbolic evaluation to inform our performance model.
 
 Second, Views fully parameterize their underlying data formats with the Layout object.
-Consider a programmer who wants to switch their data from row-major to column-major. 
-Without Views, every access to their data \verb.A[i][j]. has to be changed to \verb.A[j][i]. \textit{and} the definition of the array needs to be changed. 
-This is prohibitively expensive, especially when the programmer does not yet know the performance impact of such a decision.
-With Views however, the only change the programmer needs to make is to the View's definition: the layout permutation changes from $(0,1)$ to $(1,0)$. 
+Without Views, to switch their data from row-major to column-major, a programmer must change the definition of the array \textit{and} must change every access \verb.A[i][j] to \verb.A[j][i].
+This mechanism is prohibitively expensive, especially when the programmer does not yet know the performance impact of the decision.
+With Views however, the programmer only needs to change the View's definition: the layout permutation changes from $(0,1)$ to $(1,0)$. 
 In Listing~\ref{3MMStart}, \verb.A. is defined with the normal $(0,1)$ layout, but \verb.B. is defined with the $(1,0)$ layout. 
 Note that the change in \verb.B.'s layout does not change how it is used in the computation. 
 
