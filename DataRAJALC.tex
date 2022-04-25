@@ -105,15 +105,15 @@ escapeinside={<@}{@>}
 \begin{abstract}
 
 The layout of data in memory is a key consideration in high performance computing applications.
-From reducing cache and page misses to relieving pressure on memory bandwidth and avoiding inter-process communication, using a good data layout improves performance at all levels of an application.
+From reducing cache and page misses to relieving pressure on memory bandwidth and avoiding inter-process communication, a good data layout improves performance at all levels of an application.
 RAJA, a C++ performance portability library, incorporates the layout of an application's data into its interface.
 Thus, a developer can try different layouts without major refactoring costs.
 However, some applications benefit from changing the data layout mid-computation to facilitate better locality.
 Implementing such a mid-computation layout change in RAJA can improve performance, but is laborious to implement and lacks portability.
 This work remedies RAJA's shortcoming by introducing a lightweight, declarative API for changing data layouts between computations.
-Then, bringing existing compiler technology into the library interface, we use a runtime performance model that estimates the cost of additional layout changes.
-These systems combine so that the model and runtime \enquote{fill in} layout choices that the user did not specify.
-Thus the user can specify as much of the layout information as they please and still obtain the performance benefits of changing data layouts.  
+We then extend the library with existing compiler technology to guide the use of layout changes based on our runtime performance model of their cost and benefit.
+Thus, the model and runtime combine to \enquote{fill in} layout choices that the user did not specify.
+Our approach allows the user to specify as much of the layout information as they please and still obtain the performance benefits of changing data layouts.  
 Further, our system is built directly into the RAJA library, meaning that no additional build steps are required.
 We evaluate our system on four benchmarks, where it achieves similar performance improvements to hand-implemented optimizations.
 \end{abstract}
@@ -156,27 +156,30 @@ General purpose libraries like Kokkos and RAJA and programming languages like Ch
 Thus, programmers must use that particular data format for the entire computation.
 While a developer could change the data layout mid-computation in RAJA, the developer must either modify RAJA library code or use multiple arrays for the same data. 
 Both options increase the code complexity and increase its fragility.
-Even for the brave developer choosing one of these options, yet another obstacle remains: selecting the right combination of formats for the computation.
-Even a modest computation of two loops using four 2D arrays has more than 200 combinations from which to choose, meaning trying out all possible options quickly becomes infeasible. 
+The brave developer who chooses one of these options must still overcome yet another obstacle: selecting the right combination of formats.
+Even a modest computation of two loops that use four 2D arrays has more than 200 combinations from which to choose, so trying all possible options quickly becomes infeasible. 
 
-There is a significant body of work that developed ILP problems for determining data layouts in distributed memory settings for programming languages like HPF and D~\cite{bixby1994automatic,kennedy1995automatic,kennedy1998automatic}. 
+A significant body of work has developed Integer Linear Programming (ILP) formulations to determine data layouts in distributed memory settings for programming languages like HPF and D~\cite{bixby1994automatic,kennedy1995automatic,kennedy1998automatic}. 
 A similar line of work~\cite{chen2004ilp,chen2005constraint,chen2005integrating, ozturk2011data} uses ILP-based constraint networks to combine data layout and schedule optimizations. 
-Both of these approaches were developed in the context of a compiler. 
-An important idea from this work we build on are automating data layout decisions (partially or fully) through the use of a performance model encoded as the objective function in an ILP problem.
-They key difference is that we are providing this data layout compiler technology to the user through a library interface, rather than applying it automatically in a compiler. 
-As such, there are advantages to exposing more control to the user. 
-There are additional challenges as well: a library needs to do its analysis and decision making at runtime and the interface provided to the user should be high-level while still providing enough control. 
-These challenges lead to a number of sub problems such as interface design so that the library implementation can do the analysis needed and quickly enough while maintaining ease of use.
-A compiler approach can take longer and has all of the information that the language semantics provide.
+Both approaches were developed in the context of a compiler. 
+We build on an important idea from them: use a performance model encoded as the objective function in an ILP problem to automate data layout decisions (partially or fully).
+Rather than only applying this data layout compiler technology automatically, we provide it to the user through a library interface while still enabling its automated use.
+Our library and runtime approach allows the user to guide use of the technology to focus on loops most likely to benefit from it.
+However, the library must perform its analysis and decision making at runtime and the interface must be high-level while still providing enough control. 
+These challenges lead to a number of sub-problems such as interface design so that the analysis cost is low (enough) while maintaining ease of use.
+A compiler approach can take longer and has all information that the language semantics provide.
 Some advantages of a library approach are that it is more accessible to users and the library implementation will have more information available, such as loop bounds, accessible at runtime before a loop executes.
-Although useful advantages, these lead to further sub problems about how the library implementation can most leverage the compiler of the language it is embedded in (C++ here) to force as much specialization as possible to achieve the ultimate goal of performance.
+Although useful advantages, these lead to further sub-problems about how the library implementation can most leverage the compiler of the language in which it is embedded (C++ here) to force as much specialization as possible to achieve the ultimate goal of performance.
 
-We extend the RAJA C++ library to address this gap in support for data layout optimizations.
+We extend the RAJA C++ library to address this gap in support of data layout optimizations.
 First, our extension exposes a lightweight API for implementing mid-computation data layout optimizations.
-For those with specific format changes in mind, two methods --- \verb.set_format_before. and \verb.set_format_after. --- ensure the appropriate format is used\footnote{Since the control is completely exposed, an autotuner can also try out different options.}.
-While the user can specify as many format requirements as they desire, any left unspecified are completed using a performance model.
-Guided by run-time microbenchmarking, the model selects format changes based on the solution of an Integer Linear Programming~(ILP) problem that considers the cost of converting formats against the potential improvement with an alternative format.
-Our inclusion of a performance model means a developer can obtain performance improvement without having to determine the sequence of format changes themselves or use an autotuner to try every possible option.
+We provide two methods --- \verb.set_format_before. and \verb.set_format_after. --- so the user can ensure the use of appropriate known formats \footnote{Since we completely expose the control, an autotuner can also try different options.}.
+While the user can specify any known formats, a performance model guides any unspecified choices.
+Based on run-time microbenchmarking, the model selects format changes through the solution of an ILP problem that considers the cost of converting formats against the potential improvement with an alternative format.
+Our inclusion of a performance model means a developer can obtain performance improvement without having to determine the sequence of format changes themselves.
+%% BRONIS: Most autotuning approaches do not use exhaustive testing
+%% BRONIS: I think one could argue that we use the ILP problem to autotune
+%% or use an autotuner to try every possible option.
 
 This paper includes the following contributions:
 \begin{itemize}
@@ -257,15 +260,14 @@ After the computation objects are created on lines 30 through 32, they are execu
 RAJA also provides an array wrapper class called a View.
 The View object has a number of capabilities that make it a valuable tool within RAJA codes.
 First, Views use the call operator to perform memory accesses. 
-By overloading this call operator for symbolic iterator types, RAJALC enabled the runtime symbolic evaluation of kernels that use Views.
-RAJALC used the access information gathered from symbolic evaluation to ensure the correctness of its scheduling optimizations.
+By overloading this call operator for symbolic iterator types, RAJALC enables the runtime symbolic evaluation of kernels that use Views.
+RAJALC uses the access information gathered from symbolic evaluation to ensure the correctness of its scheduling optimizations.
 This work uses RAJALC's runtime symbolic evaluation to inform our performance model.
 
 Second, Views fully parameterize their underlying data formats with the Layout object.
-Consider a programmer who wants to switch their data from row-major to column-major. 
-Without Views, every access to their data \verb.A[i][j]. has to be changed to \verb.A[j][i]. \textit{and} the definition of the array needs to be changed. 
-This is prohibitively expensive, especially when the programmer does not yet know the performance impact of such a decision.
-With Views however, the only change the programmer needs to make is to the View's definition: the layout permutation changes from $(0,1)$ to $(1,0)$. 
+Without Views, to switch their data from row-major to column-major, a programmer must change the definition of the array \textit{and} must change every access \verb.A[i][j] to \verb.A[j][i].
+This mechanism is prohibitively expensive, especially when the programmer does not yet know the performance impact of the decision.
+With Views however, the programmer only needs to change the View's definition: the layout permutation changes from $(0,1)$ to $(1,0)$. 
 In Listing~\ref{3MMStart}, \verb.A. is defined with the normal $(0,1)$ layout, but \verb.B. is defined with the $(1,0)$ layout. 
 Note that the change in \verb.B.'s layout does not change how it is used in the computation. 
 
