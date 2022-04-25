@@ -543,19 +543,20 @@ See Section~\ref{sec:eval} for machine and compilation information.
 		2 & 2 & 3 & 512 \\
 		3 & 3 & 4 & 64 
 	\end{tabular}
-	\caption{Microbenchmark details.}
+	\caption{Microbenchmark details for evaluating access order as a performance metric.}
 	\label{MicrobenchmarkDetails}
 \end{table}
 
 \begin{figure*}
   \centering
-  \begin{subfigure}{.48\textwidth}
+  \begin{subfigure}{0.48\textwidth}
 	\includegraphics[width=\textwidth]{benchmark1_boxplot.pdf}
 	\caption{Box plots showing execution times for 3-dimensional loop accessing 3-dimensional view, grouped by access order. Each point represents a different combination of policy, layout, and argument orders. Each access order group is jittered.}
 	\label{AccessBenchmark1}
 	\Description[Access Order Execution Times Boxplot for Microbenchmark 1]{Fully described in the text.}
   \end{subfigure}
-\begin{subfigure}{.48\textwidth}
+  \hfill
+\begin{subfigure}{0.48\textwidth}
 	\includegraphics[width=\textwidth]{benchmark2_boxplot.pdf}
 	\caption{Box plots showing execution times for 3-dimensional loop accessing 2-dimensional view, grouped by access order. Each point represents a different combination of policy, layout, and argument orders. Each access order group is jittered.}
 	\label{AccessBenchmark2}
@@ -563,12 +564,14 @@ See Section~\ref{sec:eval} for machine and compilation information.
 \end{subfigure}
 
 \bigskip
-\begin{subfigure}{.48\textwidth}
+\begin{subfigure}{0.48\textwidth}
 	\includegraphics[width=\textwidth]{benchmark3_boxplot.pdf}
-	\caption{Box plots showing execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order. Each point represents a different combination of policy, and layout for a fixed argument order. Each access order group is jittered.}
+	\caption{Box plots showing execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order. Each point represents a different combination of policy and layout for a fixed argument order. Each access order group is jittered.}
 	\label{AccessBenchmark3}
 	\Description[Access Order Execution Time Boxplot for Microbenchmark 3]{Fully described in the text}
 \end{subfigure}
+
+\caption{Execution times for three microbenchmarks using different access orders.}
 \end{figure*}
 
 Figure~\ref{AccessBenchmark1} shows the execution times for the different access orders for microbenchmark 1.
@@ -685,7 +688,7 @@ A model is more relatively accurate when choices with better model scores have l
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{2mm-all.pdf}
-	\caption{Execution time and model score of all possible format choices for the 2MM kernel. The model selects the choice with the lowest score. Outlier shown in red. All dimension sizes are 1024.}
+	\caption{Execution time and model score of all possible format choices for the 2MM kernel. The model selects the choice with the lowest score. Outlier shown as red triangle. All dimension sizes are 1024.}
 	\label{2MMAllChoices}
 	\Description[Model Score and Execution Time]{Fully described in the text.}
 \end{figure}
