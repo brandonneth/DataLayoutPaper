@@ -55,15 +55,15 @@ escapeinside={<@}{@>}
 \newcommand{\nc}[0]{\todo{cite}}
 \newcommand{\an}[1]{{\textcolor{blue}{Author's Note: #1}}}
 \newcommand{\ttt}[1]{{\texttt{#1}}}
-
-\newcommand{\FormatDecisions}[0]{{\texttt{FormatDecisions}}~}
+\usepackage{xspace}
+\newcommand{\FormatDecisions}[0]{{\textsc{FormatDecisions}}}
 
 \graphicspath{{.}{ScoreValidity}{RAJAPerf}}
 
 %\usepackage[subtle]{savetrees}
 \vbadness=18000
 \vfuzz=2pt
-\title{Data Layout Optimization in RAJA}
+\title{\FormatDecisions{}: User-Guided Data Layout Optimization in RAJA}
 
 
 % \author{Brandon Neth}
@@ -114,8 +114,8 @@ This work remedies RAJA's shortcoming by introducing a lightweight, declarative 
 We then extend the library with existing compiler technology to guide the use of layout changes based on our runtime performance model of their cost and benefit.
 Thus, the model and runtime combine to \enquote{fill in} layout choices that the user did not specify.
 Our approach allows the user to specify as much of the layout information as they please and still obtain the performance benefits of changing data layouts.  
-Further, our system is built directly into the RAJA library, meaning that no additional build steps are required.
-We evaluate our system on four benchmarks from the RAJAPerf Suite, where it achieves similar performance improvements to hand-implemented optimizations.
+Further, \FormatDecisions{} is built directly into the RAJA library, meaning that no additional build steps are required.
+We evaluate \FormatDecisions{} on four benchmarks from the RAJAPerf Suite, where it achieves similar performance improvements to hand-implemented optimizations.
 \end{abstract}
 \maketitle
 \def\@textbottom{\vskip \z@ \@plus 1pt}
@@ -125,15 +125,15 @@ We evaluate our system on four benchmarks from the RAJAPerf Suite, where it achi
 
 \section{Introduction}
 
-How data is stored and accessed has always been recognized to have a significant impact on performance. 
+How data is stored and accessed has always been recognized as a key influence on overall performance.
 For example, on a typical cache-based system, iterating through a two-dimensional array in column-order when data is 
 stored in row-order can lead to significant slowdown. 
-Although mechanisms such as compiler optimizations (loop permutation/interchange) 
-and data layout policies like those in Kokkos~\cite{edwards2014kokkos} and RAJA~\cite{hornung2014RAJA} can align data layout with computation schedules, they become difficult to automate and laborious to manage by hand as the number of loops and arrays grow.
+Although mechanisms such as compiler optimizations~\cite{wolf1991data,bixby1994automatic}
+and data layout policies like those in Kokkos~\cite{edwards2014kokkos} and RAJA~\cite{hornung2014RAJA} can align data layout with computation schedules, they lack user controls or become difficult to automate and laborious to manage by hand as the number of loops and arrays grow.
 
-In this paper, we present an approach for exposing data layout decisions to the programmer in the C++ portable, parallel library RAJA.
+In this paper, we present \FormatDecisions{}, an approach for exposing data layout decisions to the programmer in the C++ portable, parallel library RAJA.
 The presented API allows the programmer to specify as many data layout decisions in a sequence of data-sharing loops (otherwise known as a loop chain~\cite{krieger2013loop}) as they choose.
-Then, using a portable cost model based on microbenchmarking, our system identifies any remaining layout changes estimated to improve performance.  
+Then, using a portable cost model based on microbenchmarking, \FormatDecisions{} identifies any remaining layout changes estimated to improve performance.  
 
 Figure~\ref{IntroExample} shows the importance of a good data layout. 
 The BadLayout column shows the execution time for a matrix multiplication where the three arrays are laid out opposite of their access order. 
@@ -173,7 +173,7 @@ Some advantages of a library approach are that it is more accessible to users an
 Although useful advantages, these lead to further sub-problems about how the library implementation can most leverage the compiler of the language in which it is embedded (C++ here) to force as much specialization as possible to achieve the ultimate goal of performance.
 
 We extend the RAJA C++ library to address this gap in support of data layout optimizations.
-First, our extension exposes a lightweight API for implementing mid-computation data layout optimizations.
+First, \FormatDecisions{} exposes a lightweight API for implementing mid-computation data layout optimizations.
 We provide two methods --- \verb.set_format_before. and \verb.set_format_after. --- so the user can ensure the use of appropriate known formats \footnote{Since we completely expose the control, an autotuner can also try different options.}.
 While the user can specify any known formats, a performance model guides any unspecified choices.
 Based on run-time microbenchmarking, the model selects format changes through the solution of an ILP problem that considers the cost of converting formats against the potential improvement with an alternative format.
@@ -192,9 +192,9 @@ This paper includes the following contributions:
 
 The rest of the paper proceeds as follows. 
 Section 2 reviews the RAJA library and prior extensions we use in the current work.
-Section 3 introduces the interface of our contribution.
+Section 3 introduces the \FormatDecisions{} interface.
 Sections 4 and 5 detail how we construct our performance model and estimate the costs of different layout conversion choices.
-Section 6 evaluates our contribution's impact on performance and productivity.
+Section 6 evaluates the impact of \FormatDecisions{}  on performance and productivity.
 Section 7 reviews related work and section 8 concludes.
 
 
@@ -301,7 +301,7 @@ and then finally update the View's layout object.
 
 This work removes that barrier by expanding the declarative data optimization system begun by RAJALC.
 While RAJALC tackled the problem of scheduling optimizations, we target making data format changes between computations. 
-The new \verb.FormatDecisions. object is the central component of our system. 
+The \verb.FormatDecisions. object is the central component of our system. 
 Its instantiation takes a tuple of references to Views that are possible targets of format changes and the kernel objects that constitute the whole computation.
 Two methods are used to register desired formats: \verb.set_format_before. and \verb.set_format_after..
 Both take the View to be reformatted, the desired format, and the computation before or after which the desired format should be used.
@@ -309,7 +309,7 @@ Once all format choices are registered, the complete computation with the desire
 
 
 \begin{figure}
-\begin{lstlisting}[caption={The 3MM benchmark implemented using FormatDecisions.},
+\begin{lstlisting}[caption={The 3MM benchmark implemented using \FormatDecisions{}.},
 	label={FormatDecisions3MM}]
 auto knl1 = make_kernel<KPOL>(segs1, [=](auto i0, auto i1, auto i2) {
 	E(i0, i1) += A(i0, i2) * B(i2, i1);
@@ -338,8 +338,8 @@ computation();
 
 \section{Performance Modeling}
 
-In addition to the format changes registered by the user, the new \verb.FormatDecisions. also uses a performance model to determine if additional format changes will improve performance. 
-This capability means that even without any registered format choices, \verb.FormatDecisions. often selects the same changes the user would themselves choose. 
+In addition to the format changes registered by the user, \FormatDecisions{} also uses a performance model to determine if additional format changes will improve performance. 
+This capability means that even without any registered format choices, \FormatDecisions{} often selects the same changes the user would themselves choose. 
 We encode the problem as an integer linear program where the solution represents our model's pick for the optimal layouts.
 
 
@@ -438,7 +438,7 @@ create_objective_function(view):
 \end{figure*}
 \section{Cost Estimation}
 
-Because our system uses microbenchmarking to estimate the cost of different layouts, the overhead can meaningfully impact overall performance. 
+Because \FormatDecisions{} uses runtime microbenchmarking to estimate the cost of different layouts, the overhead can meaningfully impact overall performance. 
 To mitigate this effect, we reuse the microbenchmarking results as much as possible.
 To maximize reuse, we model choices based on their access order, which describes the order in which iterations access data in memory.
 
@@ -590,7 +590,7 @@ A similar pattern as the previous microbenchmarks emerges here: grouping based o
 \section{Evaluation}
 \label{sec:eval}
 
-We present a number of experiments to evaluate our system. 
+We present a number of experiments to evaluate \FormatDecisions. 
 First, we examine performance and productivity using four benchmarks from the polybench~\cite{pouchet2012polybench} section of the RAJAPerf benchmark suite~\cite{hornung2017raja}.
 The RAJAPerf benchmark suite is a collection of key benchmarks from production applications.
 Then, for one of the benchmarks, we perform an exhaustive evaluation of all layout choices to further explore the accuracy of our performance model.
@@ -598,8 +598,8 @@ All performance results in this paper were collected on a single node with a 44-
 All compilation used Clang version 13.0.0 with \verb.-O3. optimization.
 
 \subsection{Experiment 1: Polybench}
-
-Our first experiment examined the performance and programmer productivity impacts of our contribution.
+\label{sec:Experiment1}
+Our first experiment examined the performance and programmer productivity impacts of \FormatDecisions{}.
 We targeted four key benchmarks from the Polybench suite: \textsc{2mm}, \textsc{3mm}, \textsc{gemver}, and \textsc{mvt}.
 While other benchmarks in the suite have the potential for data layout optimization, they present imperfect nesting and non-rectangular iteration spaces, which are not currently supported by our implementation. 
 Future work will add support for imperfect nesting through updating our cost estimator and symbolic evaluator to handle kernel calls with multiple lambdas. 
@@ -658,7 +658,7 @@ For \textsc{mvt} and \textsc{gemver}, because no layout changes are made, we do 
 Across all benchmarks, there is little difference performance difference among the variants that make layout changes.
 This indicates that the overhead of our system is minimal and that our model makes comparable layout choices to hand-tuning.
 
-To evaluate the productivity of our contribution, we report the source lines of code added or changed for each of the variants.
+To evaluate the productivity of \textsc{FormatDecisions}, we report the source lines of code added or changed for each of the variants.
 This value is calculated by counting the number of line differences using python's \verb.Differ.. 
 We preprocess to remove all whitespace-only lines.
 Figure~\ref{PolybenchSLOC} shows the results.
@@ -760,8 +760,8 @@ We conclude with a number of limitations and directions for future work.
 The main limitation of the present study is the extent of the evaluation.
 While four benchmark programs gives a general picture of our technique and its impact, more benchmark kernels need to be examined.
 Similarly, an evaluation should be completed on a full application rather than only on benchmark loops.
-Addressing this limitation will require support for more complex loop nests and bounds.
-Another limitation is the fixed nature of our performance model.
+Addressing this limitation will require support for more complex loop nests and iteration spaces, as discussed in Section~\ref{sec:Experiment1}.
+Another limitation is the singular nature of our performance model.
 Future work should incorporate an interface for defining and using different performance models, allowing users to prioritize different aspects of the transformation decision.
 Currently, the performance model runs with user inputs as strict constraints.
 While this is a deliberate design decision to give users full control over the optimization, future work should provide warnings if the model identifies a better choice than the one selected by the user. 
@@ -772,7 +772,7 @@ This technique could be extended to work for sparse arrays as well.
 
 Overall, data format is a key consideration when optimizing applications.
 Especially in performance portability libraries like RAJA, developers need tools to implement those optimizations without sacrificing productivity.
-Our API gives developers those tools.
+\FormatDecisions{} gives developers those tools.
 By combining declarative user specification of data format with runtime performance modeling, we can offer the performance improvements of data layout changes with significantly less developer effort.
 \balance
 
