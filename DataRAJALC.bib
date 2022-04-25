@@ -114,6 +114,24 @@
   year={2007},
   publisher={Sage Publications Sage UK: London, England}
 }
+@inproceedings{bondhugula2008pluto,
+	Author = {Bondhugula, Uday and Hartono, A and Ramanujam, J and Sadayappan, P},
+	Booktitle = {Proceedings of the ACM SIGPLAN 2008 Conference on Programming Language Design and Implementation (PLDI 08), Tucson, AZ (June 2008)},
+	Organization = {Citeseer},
+	Title = {Pluto: A practical and fully automatic polyhedral program optimization system},
+	Year = {2008}
+}
+
+@inproceedings{lu2009data,
+  title={Data layout transformation for enhancing data locality on nuca chip multiprocessors},
+  author={Lu, Qingda and Alias, Christophe and Bondhugula, Uday and Henretty, Thomas and Krishnamoorthy, Sriram and Ramanujam, Jagannathan and Rountev, Atanas and Sadayappan, Ponnuswamy and Chen, Yongjian and Lin, Haibo and others},
+  booktitle={2009 18th International Conference on Parallel Architectures and Compilation Techniques},
+  pages={348--357},
+  year={2009},
+  organization={IEEE},
+  url={https://web.cse.ohio-state.edu/~rountev.1/presto/pubs/pact09.pdf}
+}
+
 
 @inproceedings{sung2010data,
   title={Data layout transformation exploiting memory-level parallelism in structured grid many-core applications},
@@ -155,15 +173,34 @@
   organization={Springer},
   url={https://link.springer.com/content/pdf/10.1007/978-3-642-19861-8_13.pdf}
 }
-@article{lu2012empirical,
-  title={Empirical performance model-driven data layout optimization and library call selection for tensor contraction expressions},
-  author={Lu, Qingda and Gao, Xiaoyang and Krishnamoorthy, Sriram and Baumgartner, Gerald and Ramanujam, J and Sadayappan, Ponnuswamy},
-  journal={Journal of Parallel and Distributed Computing},
-  volume={72},
-  number={3},
-  pages={338--352},
+
+@inproceedings{zhang2011optimizing,
+  title={Optimizing data layouts for parallel computation on multicores},
+  author={Zhang, Yuanrui and Ding, Wei and Liu, Jun and Kandemir, Mahmut},
+  booktitle={2011 International Conference on Parallel Architectures and Compilation Techniques},
+  pages={143--154},
+  year={2011},
+  organization={IEEE},
+  url={https://ieeexplore.ieee.org/abstract/document/6113796}
+}
+
+@inproceedings{bandishti2012tiling,
+  title={Tiling stencil computations to maximize parallelism},
+  author={Bandishti, Vinayaka and Pananilath, Irshad and Bondhugula, Uday},
+  booktitle={SC'12: Proceedings of the International Conference on High Performance Computing, Networking, Storage and Analysis},
+  pages={1--11},
   year={2012},
-  publisher={Elsevier}
+  organization={IEEE}
+}
+
+@inproceedings{jaeger2012automatic,
+  title={Automatic efficient data layout for multithreaded stencil codes on CPU sand GPUs},
+  author={Jaeger, Julien and Barthou, Denis},
+  booktitle={2012 19th International Conference on High Performance Computing},
+  pages={1--10},
+  year={2012},
+  organization={IEEE},
+  url={https://ieeexplore-ieee-org.ezproxy1.library.arizona.edu/stamp/stamp.jsp?tp=&arnumber=6507504}
 }
 
 @article{pouchet2012polybench,
@@ -190,6 +227,16 @@
 	Series = {PLDI '13},
 	Title = {Halide: a language and compiler for optimizing parallelism, locality, and recomputation in image processing pipelines},
 	Year = {2013}}
+
+@inproceedings{majeti2013compiler,
+  title={Compiler-driven data layout transformation for heterogeneous platforms},
+  author={Majeti, Deepak and Barik, Rajkishore and Zhao, Jisheng and Grossman, Max and Sarkar, Vivek},
+  booktitle={European Conference on Parallel Processing},
+  pages={188--197},
+  year={2013},
+  organization={Springer},
+  url={https://link.springer.com/content/pdf/10.1007/978-3-642-54420-0_19.pdf}
+}
 
   @techreport{hornung2014RAJA,
 	Author = {Hornung, Richard D. and Keasler, Jeffrey A.},
@@ -228,6 +275,46 @@
   pages={485--496},
   year={2014},
   organization={Springer}
+}
+@inproceedings{weber2014auto,
+  title={Auto-Tuning Complex Array Layouts for GPUs.},
+  author={Weber, Nicolas and Goesele, Michael},
+  booktitle={EGPGV@ EuroVis},
+  pages={57--64},
+  year={2014},
+  url={http://download.hrz.tu-darmstadt.de/media/FB20/GCC/paper/Weber_2014_EGPGV.pdf}
+}
+
+@inproceedings{kofler2015automatic,
+  title={Automatic data layout optimizations for gpus},
+  author={Kofler, Klaus and Cosenza, Biagio and Fahringer, Thomas},
+  booktitle={European Conference on Parallel Processing},
+  pages={263--274},
+  year={2015},
+  organization={Springer},
+  url={http://www.insieme-compiler.org/pub/2015_europar_automatic_data_layout_gpus.pdf}
+}
+
+
+
+@inproceedings{bertolacci2015parameterized,
+  title={Parameterized diamond tiling for stencil computations with chapel parallel iterators},
+  author={Bertolacci, Ian J and Olschanowsky, Catherine and Harshbarger, Ben and Chamberlain, Bradford L and Wonnacott, David G and Strout, Michelle Mills},
+  booktitle={Proceedings of the 29th ACM on International Conference on Supercomputing},
+  pages={197--206},
+  year={2015},
+  url={https://dl.acm.org/doi/pdf/10.1145/2751205.2751226}
+}
+
+@article{bondhugula2016diamond,
+  title={Diamond tiling: Tiling techniques to maximize parallelism for stencil computations},
+  author={Bondhugula, Uday and Bandishti, Vinayaka and Pananilath, Irshad},
+  journal={IEEE Transactions on Parallel and Distributed Systems},
+  volume={28},
+  number={5},
+  pages={1285--1298},
+  year={2016},
+  publisher={IEEE}
 }
 
 @inproceedings{mullapudi2015polymage,
@@ -348,12 +435,7 @@ Series = {SPAA '11},
 Title = {The pochoir stencil compiler},
 Year = {2011}}
 
-@inproceedings{bondhugula2008pluto,
-	Author = {Bondhugula, Uday and Hartono, A and Ramanujam, J and Sadayappan, P},
-	Booktitle = {Proceedings of the ACM SIGPLAN 2008 Conference on Programming Language Design and Implementation (PLDI 08), Tucson, AZ (June 2008)},
-	Organization = {Citeseer},
-	Title = {Pluto: A practical and fully automatic polyhedral program optimization system},
-	Year = {2008}}
+
 
   @inproceedings{baghdadi2019tiramisu,
 	Author = {Baghdadi, Riyadh and Ray, Jessica and Romdhane, Malek Ben and Del Sozzo, Emanuele and Akkas, Abdurrahman and Zhang, Yunming and Suriana, Patricia and Kamil, Shoaib and Amarasinghe, Saman},
