@@ -291,7 +291,7 @@ In contrast, while \verb.B. and \verb.D. have the same argument order, their acc
 Looking at the two references to \verb.F. in kernels two and three, we can see that even access order to the same data can change through a computation.
 Because different formats are optimal for different kernels, this creates an opportunity for optimization. 
 
-However, RAJA's built-in support for changing data layouts is minimal. 
+However, RAJA's existing support for changing data layouts is minimal. 
 While Views can be instantiated with different layouts, changing the layout of an existing View is not as simple.
 This is because changing layouts also requires reordering the underlying data to match the new layout. 
 To implement such a layout change by hand requires the programmer to allocate a new temporary array, 
@@ -299,13 +299,31 @@ copy the data from the View to the temporary array in the right order,
 copy the data \textit{back} to the memory in the View, 
 and then finally update the View's layout object.
 
-This work removes that barrier by expanding the declarative data optimization system begun by RAJALC.
+This work removes that barrier by expanding the declarative data optimization system begun by RAJALC~\cite{neth2021inter}.
 While RAJALC tackled the problem of scheduling optimizations, we target making data format changes between computations. 
-The \verb.FormatDecisions. object is the central component of our system. 
-Its instantiation takes a tuple of references to Views that are possible targets of format changes and the kernel objects that constitute the whole computation.
-Two methods are used to register desired formats: \verb.set_format_before. and \verb.set_format_after..
-Both take the View to be reformatted, the desired format, and the computation before or after which the desired format should be used.
-Once all format choices are registered, the complete computation with the desired format conversions is generated using the \verb.finalize. method.
+To achieve this, we introduce a single user-facing class, appropriately named \verb.FormatDecisions..
+This class starts with a record of the computations and data under consideration.
+While the user can technically instatiate their \verb.FormatDecisions. objects using the class constructor, we provide a separate constructor function, \verb.format_decisions., to remove the need for the programmer to manage templating.
+The interface for this function is the same as the class constructor, and can be seen on line 11 of Listing~\ref{FormatDecisions3MM}.
+
+Once the \verb.FormatDecisions. object is created, the user then registers the formats they want to use for different computations.
+At first glance, it seems that a single method for registering choices would be sufficient. 
+Simply provide the View, the desired format, and the computation during which that format should be used.
+However, there are two problems with this approach.
+First, it is often desirable to specify a final output format that the data should be in after the computation is complete. 
+A single registering function cannot provide this capability.
+Second, using a single registering function creates a disconnect between the registration and when exactly the transformation will happen.
+For example, consider registering that View \verb.A. should use \verb.Format1. for the fourth kernel in a computation.
+Because it may be beneficial to switch to \verb.Format1. for the earlier kernels too, the registering function should indicate that the conversion is not necessarily occuring immediately before the fourth kernel.
+
+Our chosen design addresses these problems with two methods for registering format choices: \verb.set_format_before. and \verb.set_format_after..
+The names of the methods indicate their argument order of data, format choice, kernel. 
+We \verb.set. the data to the given \verb.format. either \verb.before. or \verb.after. the kernel. 
+Using a combination of these methods, flexible format choices can be registered for the computations and the final, outgoing format.
+These methods can be seen in use on lines 13-17 of Listing~\ref{FormatDecisions3MM}.
+
+After the user has registered their choices, the complete computation with interspersed format conversions is generated using the \verb.finalize. method.
+This is seen on line 19 of Listing~\ref{FormatDecisions3MM}.
 
 
 \begin{figure}
@@ -336,9 +354,9 @@ computation();
 \end{figure}
 
 
-\section{Performance Modeling}
+\section{Constraint Model for Supplementary Transformations}
 
-In addition to the format changes registered by the user, \FormatDecisions{} also uses a performance model to determine if additional format changes will improve performance. 
+In addition to the format changes registered by the user, \FormatDecisions{} also uses a constraint model to determine if additional format changes will improve performance. 
 This capability means that even without any registered format choices, \FormatDecisions{} often selects the same changes the user would themselves choose. 
 We encode the problem as an integer linear program where the solution represents our model's pick for the optimal layouts.
 
