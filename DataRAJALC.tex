@@ -694,32 +694,46 @@ This may involve considering the cache interactions of the different references 
 
 \section{Related Work}
 
-The importance of good data layout has spawned a substantial body of work developing techniques for the selection and application of data layout transformations.
+Early approaches to optimizing data locality use schedule transformations rather than data layout transformations. 
+Work incorporated into the SUIF compiler uses interchange, reversal, skewing, and tiling~\cite{wolf1991data}, whereas Fortran source-to-source approaches also use loop fusion~\cite{mckinley1996improving}.
+While schedule transformations avoid the overhead cost of layout conversion, their global nature can improve locality for one access while harming another.
+Nevertheless, schedule transformations remain a popular approach to optimizing data locality and parallelism, 
+especially through tiling techniques~\cite{bondhugula2008pluto,bertolacci2015parameterized,bondhugula2016diamond,bandishti2012tiling,unat2016tida}.
 
-While early approaches~\cite{wolf1991data,mckinley1996improving} use only schedule transformations like loop interchange to improve locality, the global nature of schedule transformations can improve the accesses to one array while harming those to another. 
-This problem is addressed by using data layout transformations instead. 
+In the domain of data layout transformations, early work in High Performance Fortran (HPF) and D compilers~\cite{bixby1994automatic,kennedy1995automatic,kennedy1998automatic} provide foundations for a variety of later approaches.
+Their framework follows a popular pattern: generate a space of possible choices, estimate the performance of different choices, and select an option using an ILP formulation. 
+Our ILP problem formulation is similar to theirs, although we do not use the data layout graph intermediate representation.
+Furthermore, where their model for cost estimation focuses on communication costs in a distributed context, our approach models on-node performance costs of cache misses.
 
-There is a significant body of work that developed ILP problems for determining data layouts in distributed memory settings for programming languages like HPF and D~\cite{bixby1994automatic,kennedy1995automatic,kennedy1998automatic}. 
-A similar line of work~\cite{chen2004ilp,chen2005constraint,chen2005integrating, ozturk2011data} uses ILP-based constraint networks to combine data layout and schedule optimizations. 
-Both of these approaches were developed in the context of a compiler. 
-An important idea from this work we build on are automating data layout decisions (partially or fully) through the use of a performance model encoded as the objective function in an ILP problem.
-They key difference is that we are providing this data layout compiler technology to the user through a library interface, rather than applying it automatically in a compiler. 
-As such, there are advantages to exposing more control to the user. 
-There are additional challenges as well: a library needs to do its analysis and decision making at runtime and the interface provided to the user should be high-level while still providing enough control. 
-These challenges lead to a number of sub problems such as interface design so that the library implementation can do the analysis needed and quickly enough while maintaining ease of use.
-A compiler approach can take longer and has all of the information that the language semantics provide.
-Some advantages of a library approach are that it is more accessible to users and the library implementation will have more information available, such as loop bounds, accessible at runtime before a loop executes.
-Although useful advantages, these lead to further sub problems about how the library implementation can most leverage the compiler of the language it is embedded in (C++ here) to force as much specialization as possible to achieve the ultimate goal of performance.
+The polyhedral model, traditionally used for schedule transformations, is commonly leveraged for data layout transformations as well.
+With the rise of multicore chips, new strategies were needed to manage shared on-chip resources. 
+Work by Lu et al~\cite{lu2009data} and Zhang et al~\cite{zhang2011optimizing} develop layout optimization schemes based on the polyhedral model and use a combination of strip-mining, permutation, and padding transformations.
 
-More recent work has taken a similar compiler-based approach to data layout transformations.
-With the advent of general-purpose GPU programming, data layout transformations have been used to improve vectorization~\cite{henretty2011data} and memory bottlenecks~\cite{sung2010data}.
 
-Pragmas have been suggested as a solution to this problem of providing control over the transformations to the user.
+Data layout transformation frameworks are also popular for heterogeneous programming systems, especially for stencil codes.
+Sung, Stratton, and Hwu~\cite{sung2010data} use data layout transformations to relieve pressure on memory controllers in structured grid applications. 
+They do this by spreading data out across the address space based on the indexing behavior of the application.
+Henretty et al~\cite{henretty2011data} develop a layout transformation and accompanying static analysis to address stream alignment conflicts for SIMD architectures.
+Jaeger and Barthou~\cite{jaeger2012automatic} present a strategy for generating stencil codes with optimal data layouts using a multi-padding layout transformation.
+Recognizing the need for specialized support for ever-changing chip structure, Majeti et al~\cite{majeti2013compiler} develop a programmer (or autotuner) guided data transformation system.
+Built into the Habenero-C compiler, the meta-data provided by the user guides the generation of architecture-specific SOA, AOS, and SOAOS data layouts.
+Another approach by Kofler, Cosenza, and Fahringer~\cite{kofler2015automatic} convert AOS implementations to other data layouts for GPU applications automatically.  
+With the exception of Majeti et al, these approaches do not provide interface to the developer, and without exception are compiler-based approaches.
+Our approach presents an interface to the developer in the form of a library API, allowing user control and low-cost integration into existing workloads.
+
+Although still in the realm of the compiler, pragmas have been suggested as a solution to this problem of providing control over the transformations to the user.
 Proposals to add such pragmas have been submitted to OpenMP~\cite{kruse2019design} and Clang~\cite{kruse2018user}.
 Other work has implemented transformation pragmas into a source-to-source compiler~\cite{xu2014semi}. 
-\todo{differentiate. something about these still being compiler-based transformations rather than library-based approaches}
-Finally, domain-specific language approaches have been used to expose data layout transformations to the programmer domains such as stencil computations~\cite{kronawitter2018automatic}.
-\todo{differentiate}
+
+
+Domain-specific language approaches are another avenue for presenting users with control of what data layout transformations to apply. 
+Kronawitter et al~\cite{kronawitter2018automatic} incorporate data layout specification into the ExaSlang DSL.
+Using a polyhedral framework, the Tiramisu DSL~\cite{baghdadi2019tiramisu} also enables data layout transformation specification.
+In constrast to these specialized approaches, Our approach seeks to support a wider class of computations without needing the additional machinery required to use DSLs. 
+
+
+
+
 
 
 \section{Conclusion}
