@@ -1,16 +1,16 @@
 \documentclass[sigconf,review=true]{acmart}
 
-%\begin{CCSXML}
-%	<ccs2012>
-%	   <concept>
-%		   <concept_id>10011007.10011006.10011072</concept_id>
-%		   <concept_desc>Software and its engineering~Software libraries and repositories</concept_desc>
-%		   <concept_significance>500</concept_significance>
-%		   </concept>
-%	 </ccs2012>
-%\end{CCSXML}
-%	
-%\ccsdesc[500]{Software and its engineering~Software libraries and repositories}
+\begin{CCSXML}
+	<ccs2012>
+	   <concept>
+		   <concept_id>10011007.10011006.10011072</concept_id>
+		   <concept_desc>Software and its engineering~Software libraries and repositories</concept_desc>
+		   <concept_significance>500</concept_significance>
+		   </concept>
+	 </ccs2012>
+\end{CCSXML}
+	
+\ccsdesc[500]{Software and its engineering~Software libraries and repositories}
 \keywords{data layout, data optimization, loop chains, inter-loop optimization, performance model}
 \usepackage{array} 
 \usepackage{comment}
@@ -141,11 +141,11 @@ The GoodLayout column shows the execution time for the same matrix multiplicatio
 The LayoutChange column shows the execution time of code that changes the layout from the bad layout to the good one.
 Finally, the SwitchAndRun column shows the combined execution time of changing the layout from bad to good and then running.
 As the graph shows, performance improves  significantly (72\%) simply by changing the data layout, and the cost of performing the layout change is small (<1\% of execution time). 
-See Section~\ref{sec:eval} for machine and compilation information.
+
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{IntroExampleGraph.pdf}
-	\caption{Execution time for matrix multiplication using optimal and non-optimal data layouts and execution time for converting from non-optimal to optimal.}
+	\caption{Execution time for matrix multiplication using optimal and non-optimal data layouts and execution time for converting from non-optimal to optimal. Section~\ref{sec:eval} for machine and compilation information.}
 	\label{IntroExample}
 	\Description[Matrix Multiplication Execution Time for Different Layouts]{A bar plot showing a "Bad Layout" column with execution time greater than the "Good Layout" and "Layout Conversion" columns combined.}
 \end{figure}
@@ -586,8 +586,10 @@ A similar pattern as the previous microbenchmarks emerges here: grouping based o
 %%%%%%%%%%%%%%%%%%%%%%
 \section{Evaluation}
 \label{sec:eval}
+
 We present a number of experiments to evaluate our system. 
-First, we examine performance and productivity using four benchmarks from the polybench suite~\cite{pouchet2012polybench}.
+First, we examine performance and productivity using four benchmarks from the polybench~\cite{pouchet2012polybench} section of the RAJAPerf benchmark suite~\cite{hornung2017raja}.
+The RAJAPerf benchmark suite is a collection of key benchmarks from production applications.
 Then, for one of the benchmarks, we perform an exhaustive evaluation of all layout choices to further explore the accuracy of our performance model.
 All performance results in this paper were collected on a single node with a 44-core IBM Power9 CPU and 256GB of CPU memory.
 All compilation used Clang version 13.0.0 with \verb.-O3. optimization.
@@ -595,10 +597,14 @@ All compilation used Clang version 13.0.0 with \verb.-O3. optimization.
 \subsection{Experiment 1: Polybench}
 
 Our first experiment examined the performance and programmer productivity impacts of our contribution.
-We targeted four benchmarks from the Polybench suite: \textsc{2mm}, \textsc{3mm}, \textsc{gemver}, and \textsc{mvt}.
-While other benchmarks in the suite have the potential for data layout optimization, they present imperfect nesting and non-constant loop bounds, which are not currently supported by our implementation. 
+We targeted four key benchmarks from the Polybench suite: \textsc{2mm}, \textsc{3mm}, \textsc{gemver}, and \textsc{mvt}.
+While other benchmarks in the suite have the potential for data layout optimization, they present imperfect nesting and non-rectangular iteration spaces, which are not currently supported by our implementation. 
+Future work will add support for imperfect nesting through updating our cost estimator and symbolic evaluator to handle kernel calls with multiple lambdas. 
+Support for non-rectangular iteration spaces is also part of our future research directions, but will require additional modification to the base RAJA library.
+
 For each benchmark, we implemented different variants and compared their relative speedup and the number of code changes necessary to go from the original implementation to the variant implementation.
 We used RAJAPerf~\cite{hornung2017raja} to run our experiments with default data sizes.
+
 
 \textsc{2mm} solves the matrix expression $A*B*C$ using two matrix multiplications. 
 First, it computes $A*B$ and stores the results in a temporary array.
