@@ -115,7 +115,7 @@ We then extend the library with existing compiler technology to guide the use of
 Thus, the model and runtime combine to \enquote{fill in} layout choices that the user did not specify.
 Our approach allows the user to specify as much of the layout information as they please and still obtain the performance benefits of changing data layouts.  
 Further, our system is built directly into the RAJA library, meaning that no additional build steps are required.
-We evaluate our system on four benchmarks, where it achieves similar performance improvements to hand-implemented optimizations.
+We evaluate our system on four benchmarks from the RAJAPerf Suite, where it achieves similar performance improvements to hand-implemented optimizations.
 \end{abstract}
 \maketitle
 \def\@textbottom{\vskip \z@ \@plus 1pt}
@@ -127,7 +127,7 @@ We evaluate our system on four benchmarks, where it achieves similar performance
 
 How data is stored and accessed has always been recognized to have a significant impact on performance. 
 For example, on a typical cache-based system, iterating through a two-dimensional array in column-order when data is 
-stored in row-order can lead to significant slowdown 
+stored in row-order can lead to significant slowdown. 
 Although mechanisms such as compiler optimizations (loop permutation/interchange) 
 and data layout policies like those in Kokkos~\cite{edwards2014kokkos} and RAJA~\cite{hornung2014RAJA} can align data layout with computation schedules, they become difficult to automate and laborious to manage by hand as the number of loops and arrays grow.
 
@@ -141,6 +141,7 @@ The GoodLayout column shows the execution time for the same matrix multiplicatio
 The LayoutChange column shows the execution time of code that changes the layout from the bad layout to the good one.
 Finally, the SwitchAndRun column shows the combined execution time of changing the layout from bad to good and then running.
 As the graph shows, performance improves  significantly (72\%) simply by changing the data layout, and the cost of performing the layout change is small (<1\% of execution time). 
+See Section~\ref{sec:eval} for machine and compilation information.
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{IntroExampleGraph.pdf}
@@ -188,6 +189,13 @@ This paper includes the following contributions:
 \item An optimization that increases the reuse of microbenchmarking information; and
 \item Performance results and source lines of code (SLOC) for five variants of four benchmark kernels comparing hand-implemented optimizations to our system.
 \end{itemize} 
+
+The rest of the paper proceeds as follows. 
+Section 2 reviews the RAJA library and prior extensions we use in the current work.
+Section 3 introduces the interface of our contribution.
+Sections 4 and 5 detail how we construct our performance model and estimate the costs of different layout conversion choices.
+Section 6 evaluates our contribution's impact on performance and productivity.
+Section 7 reviews related work and section 8 concludes.
 
 
 %%%%%%%%%%%%%%%
@@ -265,7 +273,7 @@ RAJALC uses the access information gathered from symbolic evaluation to ensure t
 This work uses RAJALC's runtime symbolic evaluation to inform our performance model.
 
 Second, Views fully parameterize their underlying data formats with the Layout object.
-Without Views, to switch their data from row-major to column-major, a programmer must change the definition of the array \textit{and} must change every access \verb.A[i][j] to \verb.A[j][i].
+Without Views, to switch their data from row-major to column-major, a programmer must change the definition of the array \textit{and} must change every access \verb.A[i][j]. to \verb.A[j][i].
 This mechanism is prohibitively expensive, especially when the programmer does not yet know the performance impact of the decision.
 With Views however, the programmer only needs to change the View's definition: the layout permutation changes from $(0,1)$ to $(1,0)$. 
 In Listing~\ref{3MMStart}, \verb.A. is defined with the normal $(0,1)$ layout, but \verb.B. is defined with the $(1,0)$ layout. 
@@ -378,7 +386,7 @@ Figure~\ref{ConstraintExample} shows the variables in a model for a 2D View for 
 For each kernel, we see two decision variables, one for using column-major and one for using row-major. 
 Similarly, for each conversion point, we see four decision variables, one for each combination of input and output format. 
 The green boxes indicate the terms that are part of a Format Uniqueness constraint and a Conversion Uniqueness constraint.
-The red and blue underline shows the part of the format and conversion decision variables that group them in the Conversion-Format Matching constraints. 
+The red and blue underline shows the part of the format and conversion decision variables that group them in the Format-Conversion Matching constraints. 
 
 The objective function is constructed using the estimated cost of the format choices and conversions. 
 Each decision variable is assigned a cost coefficient in the following manner.
@@ -523,8 +531,7 @@ Microbenchmark 2 is an access to a 2-dimensional View in a 3-dimensional loop, a
 Microbenchmark 3 is an access to a 3-dimensional View in a 4-dimensional loop for a set argument order.
 Table~\ref{MicrobenchmarkDetails} summarizes them in more detail, including data sizes.
 The outermost loop is parallelized using OpenMP.
-All evaluation in this paper is performed on the same system. 
-We used a single node with two 22-core IBM Power9 CPUs and 256GB of CPU memory.
+See Section~\ref{sec:eval} for machine and compilation information.
 
 \begin{table}
 	\centering
@@ -578,12 +585,12 @@ A similar pattern as the previous microbenchmarks emerges here: grouping based o
 
 %%%%%%%%%%%%%%%%%%%%%%
 \section{Evaluation}
-
+\label{sec:eval}
 We present a number of experiments to evaluate our system. 
 First, we examine performance and productivity using four benchmarks from the polybench suite~\cite{pouchet2012polybench}.
 Then, for one of the benchmarks, we perform an exhaustive evaluation of all layout choices to further explore the accuracy of our performance model.
 All performance results in this paper were collected on a single node with a 44-core IBM Power9 CPU and 256GB of CPU memory.
-All compilation used Clang version 13.0.0.
+All compilation used Clang version 13.0.0 with \verb.-O3. optimization.
 
 \subsection{Experiment 1: Polybench}
 
