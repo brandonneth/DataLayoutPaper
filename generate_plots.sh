@@ -14,7 +14,9 @@ cd ..
 
 cd RAJAPerf
 
-python3 data-analysis.py
+python3 data-analysis.py lassen
+python3 data-analysis.py quartz
+
 python3 sloc.py
 
 cd ..
