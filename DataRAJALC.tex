@@ -608,12 +608,16 @@ A similar pattern as the previous microbenchmarks emerges here: grouping based o
 \section{Evaluation}
 \label{sec:eval}
 
-We present a number of experiments to evaluate \FormatDecisions. 
+We present two experiments to evaluate \FormatDecisions. 
+
 First, we examine performance and productivity using four benchmarks from the polybench~\cite{pouchet2012polybench} section of the RAJAPerf benchmark suite~\cite{hornung2017raja}.
 The RAJAPerf benchmark suite is a collection of key benchmarks from production applications.
 Then, for one of the benchmarks, we perform an exhaustive evaluation of all layout choices to further explore the accuracy of our performance model.
 All performance results in this paper were collected on a single node with a 44-core IBM Power9 CPU and 256GB of CPU memory.
 All compilation used Clang version 13.0.0 with \verb.-O3. optimization.
+
+
+
 
 \subsection{Experiment 1: Polybench}
 \label{sec:Experiment1}
@@ -670,20 +674,17 @@ Table~\ref{VariantDescription} describes the variants in more detail.
 \end{figure}
 
 Figure~\ref{PolybenchPerformance} reports the average speedup of the variants relative to the \verb.RAJA_OpenMP. variant. 
-The average is over 100 runs. 
-For the \textsc{2mm} and \textsc{3mm} benchmarks, the results show a meaningful speedup for the three variants that make layout changes (7.7\% to 8.3\% for \textsc{2mm} and 7.0\% to 7.2\% for \textsc{3mm}).
-For \textsc{mvt} and \textsc{gemver}, because no layout changes are made, we do not see meaningful performance improvement (<1\% change).
-Across all benchmarks, there is little difference performance difference among the variants that make layout changes.
-This indicates that the overhead of our system is minimal and that our model makes comparable layout choices to hand-tuning.
+
+
 
 To evaluate the productivity of \textsc{FormatDecisions}, we report the source lines of code added or changed for each of the variants.
 This value is calculated by counting the number of line differences using python's \verb.Differ.. 
 We preprocess to remove all whitespace-only lines.
 Figure~\ref{PolybenchSLOC} shows the results.
-For the variants that make layout changes, we see a large reduction in the amount of changes required using \verb.FormatDecisions. compared to the by-hand implementation. 
+For the variants that make layout changes, we see a large reduction in the amount of changes required using \FormatDecisions{} compared to the by-hand implementation. 
 While our tool reduces the code required by more than half, it is important to note that this is with respect to an in-line format conversion.
 It is possible for a user to themselves write a function that performs the layout change.
-For the variants without layout changes, we see that using \verb.FormatDecisions. can require more code changes than a by-hand implementation. 
+For the variants without layout changes, we see that using \FormatDecisions{} can require more code changes than a by-hand implementation. 
 This is because the \verb.Hand_Layout. variant is identical to the \verb.RAJALC. implementation, while the \verb.Format_Decision. and \verb.Model_Choice. variants instantiate the \verb.FormatDecisions. object.
 
 \begin{figure}
