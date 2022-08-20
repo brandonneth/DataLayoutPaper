@@ -619,16 +619,19 @@ All compilation used Clang version 13.0.0 with \verb.-O3. optimization.
 
 
 
-\subsection{Experiment 1: Polybench}
+\subsection{Experiment 1: RAJAPerf}
 \label{sec:Experiment1}
-Our first experiment examined the performance and programmer productivity impacts of \FormatDecisions{}.
-We targeted four key benchmarks from the Polybench suite: \textsc{2mm}, \textsc{3mm}, \textsc{gemver}, and \textsc{mvt}.
+Our first experiment examined the performance and programmer productivity impacts of \FormatDecisions{} using benchmarks from the RAJAPerf suite~\cite{hornung2017raja}.
+The RAJAPerf suite is a collections of computations from large scientific computations. 
+We target 4 benchmarks from the suite, all from the Polybench~\cite{pouchet2012polybench} and create one new computation based on miniQMC\todo{cite}.
+
+
 While other benchmarks in the suite have the potential for data layout optimization, they present imperfect nesting and non-rectangular iteration spaces, which are not currently supported by our implementation. 
 Future work will add support for imperfect nesting through updating our cost estimator and symbolic evaluator to handle kernel calls with multiple lambdas. 
 Support for non-rectangular iteration spaces is also part of our future research directions, but will require additional modification to the base RAJA library.
 
-For each benchmark, we implemented different variants and compared their relative speedup and the number of code changes necessary to go from the original implementation to the variant implementation.
-We used RAJAPerf~\cite{hornung2017raja} to run our experiments with default data sizes.
+For each benchmark, we implemented 5 different variants and compared their relative speedup and the number of code changes necessary to go from the original implementation to the variant implementation.
+
 
 
 \textsc{2mm} solves the matrix expression $A*B*C$ using two matrix multiplications. 
@@ -639,11 +642,15 @@ It computes $A*B$, then $C*D$, then multiplies the results.
 \textsc{gemver} computes a vector multiplication and adds the result to a matrix. 
 Finally, \textsc{mvt} computes a \textbf{m}atrix \textbf{v}ector product and \textbf{t}ranspose.
 
+
+
 Two of the four benchmarks, \textsc{2mm} and \textsc{3mm}, have higher loop dimensionality than data dimensionality. 
 The remaining two, \textsc{gemver} and \textsc{mvt}, have the same loop and data dimensionality. 
 This indicates that for \textsc{gemver} and \textsc{mvt}, the most profitable data transformation should be no transformation, as the traversal through the data for the conversion is the same traversal as that of the computation.
 For computations such as these, loop schedule transformations may be able to improve locality without the prohibitive cost of format conversions~\cite{kandemir1998improving}.
 However, because of their higher loop dimensionality, \textsc{2mm} and \textsc{3mm} should benefit from format conversions.
+
+\todo{Describe miniQMC benchmark}
 
 We implemented five variants of each benchmark.
 The first variant, \verb.RAJA_OpenMP., is the original RAJA implementation.
@@ -668,7 +675,7 @@ Table~\ref{VariantDescription} describes the variants in more detail.
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{PolybenchPerfPlot.pdf}
-	\caption{Normalized execution time of the Polybench variants relative to the RAJA\_OpenMP variant (Lower is better). Referent execution times are 3.2,4.7,0.039, and 0.12 seconds.}
+	\caption{Normalized execution time of the variants relative to the RAJA\_OpenMP variant (Lower is better). Referent execution times are 3.2,4.7,0.039, and 0.12 seconds.}
 	\label{PolybenchPerformance}
 	\Description[Polybench Speedups]{Bar chart for the speedup of the different Polybench kernels. Each kernel has a cluster of five bars, one for each variant. }
 \end{figure}
