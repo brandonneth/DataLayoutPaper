@@ -670,12 +670,12 @@ This will require further examination to understand the cause, but it may be due
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{instrumentation_experiment1_part1.pdf}
-	\caption{Execution time of models and computation for different problem sizes.}
+	\caption{Execution time of models and computation for different problem sizes. Experiment 1.}
 	\label{instrumentation1_1}
 \end{figure}
 \begin{figure}
 	\includegraphics[width=\columnwidth]{instrumentation_experiment1_part2.pdf}
-	\caption{Execution time of models only for different problem sizes}
+	\caption{Execution time of models only for different problem sizes. Experiment 1.}
 	\label{instrumentation1_2}
 \end{figure}
 
@@ -688,7 +688,7 @@ For the first model, while solving takes less time for four constraints than for
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{instrumentation_experiment2_part1.pdf}
-	\caption{Execution time of models only for different numbers of user constraints.}
+	\caption{Execution time of models only for different numbers of user constraints. Experiment 2. }
 	\label{instrumentation2}
 \end{figure}
 
@@ -697,18 +697,24 @@ The results support the hypothesis of an approximately linear relationship for t
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{instrumentation_experiment3_part2.pdf}
-	\caption{Execution time of models only for different numbers of Views in the \FormatDecisions{} object.}
+	\caption{Execution time of models only for different numbers of Views in the \FormatDecisions{} object. Experiment 3.}
 	\label{instrumentation3}
 \end{figure}
-%%%%%%%%%%%%%%%%%%%%%%
+
+
 
 Finally, Figure~\ref{instrumentation4_1} shows the results of the fourth experiment. While the second implementation does reduce the overhead of setting up and solving the ILP problem, the additional overhead from adding a third data dimension is still significant.
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{instrumentation_experiment4_part1.pdf}
-	\caption{Execution time for different data dimensionality}
+	\caption{Execution time for different data dimensionality. Experiment 4.}
 	\label{instrumentation4_1}
 \end{figure}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%
+
 \section{Evaluation}
 \label{sec:eval}
 
