@@ -15,6 +15,7 @@
 \usepackage{array} 
 \usepackage{comment}
 \usepackage{graphicx}
+
 \usepackage{csquotes}
 \usepackage{balance}
 \usepackage{setspace}
@@ -58,7 +59,7 @@ escapeinside={<@}{@>}
 \usepackage{xspace}
 \newcommand{\FormatDecisions}[0]{{\textsc{FormatDecisions}}}
 
-\graphicspath{{.}{ScoreValidity}{RAJAPerf}}
+\graphicspath{{./graphics/}{.}}
 
 %\usepackage[subtle]{savetrees}
 \vbadness=18000
@@ -448,12 +449,6 @@ create_objective_function(view):
 \Description{Algorithm for the function to create the model's objective function. First it adds cost estimates for conversions, then adds cost estimates for the accesses in the computation.}
 \end{figure}
 
-\begin{figure*}
-	\includegraphics[width=2\columnwidth]{FormatConversionFigure.pdf}
-	\caption{Formats, conversions, and decision variables for a 3 kernel computation. The green frames show example groups of variables that must sum to 1 due to the Format and Conversion Uniqueness Constraints. The red and blue underlines show examples of the Conversion-Format Matching constraints for input and output constraints respectively. }
-	\label{ConstraintExample}
-	\Description{5 columns titled kernels, formats, format variables, conversions, and conversion variables. The conversion columns are offset so that the conversions fall between the formats. A Green box surround the pair of variables fmt col major knl1 and fmt row major knl1. Another green box surrounds the conversion variables for conversion 1.} 
-\end{figure*}
 \section{Cost Estimation}
 
 Because \FormatDecisions{} uses runtime microbenchmarking to estimate the cost of different layouts, the overhead can meaningfully impact overall performance. 
@@ -604,7 +599,116 @@ Figure~\ref{AccessBenchmark3} shows the execution times for the different access
 A similar pattern as the previous microbenchmarks emerges here: grouping based on the position of the innermost iterator. 
 
 
+\section{Optimizing the Decision Model}
+
+The key to gaining performance improvements from \FormatDecisions{} lies in minimizing the overhead from solving the ILP formulation. 
+To that end, we compare two implementations of the decision model. 
+The first implementation uses decision variables for both computation formats and conversions, with the conversion cost estimates as coefficients of the conversion variables.
+In the second implementation, the conversion decision variables are removed and the conversion costs become coefficients of computation variable products. 
+For example, consider the potential conversion from layout $(0,1)$ to $(1,0)$ between the first and second computations. 
+Let us say the estimated cost of performing this conversion is 100. 
+Then in the first model, this cost is represented in the objective function by the term \verb.100 * conv2_in_0_1_out_1_0..
+In the second model, this cost is represented by the term \verb.100 * comp1_0_1 * comp2_1_0..
+
+Because the second model does not have conversion decision variables, the size of the decision space is drastically smaller. 
+For \FormatDecisions{} on $K$ kernels with $D$ dimensional data, both models use $(K+1)*D!$ variables to represent the layout choices for the computations. 
+In addition to the computation variables, the first model also includes $(K+1)*D!*D!$ conversion variables--one for each combination of input and output layouts at each conversion point. 
+
+While the size of the decision space of the second model is reduced by removing the conversion variables, it comes at the cost of a more complex objective function. 
+Recall the representation of conversion costs in the second model's objective function: \verb.100 * comp1_0_1 * comp2_1_0..
+Rather than representing our objective function as an affine map on the decision space, we must now use \verb.isl.'s quasipolynomial functions.
+This means that locating the optimal point becomes more costly. 
+
+In this section, we vary four parameters of the evaluation code and compare the effects on the two implementations.
+The parameters we vary are:
+\begin{itemize}
+\item Computation Data Size: The total size of the Views in the computation.
+\item Constraints Per View: The number of format decisions the user specifies for each View.
+\item View Count: The number of Views for which \FormatDecisions{} chooses formats.
+\item Dimensionality: The number of dimensions in the data. For 2D, we use the 3mm benchmark. For 3D, we use a synthetic benchmark with similar format changes. The implementations of both can be found in the Appendix \todo{write the appendix}.
+\end{itemize}
+For all experiments, the number of computations in the problem is constant at 3.
+
+We report the execution time of different components of the system. 
+The first component is the "Computation" itself. 
+This is the time spent executing the original kernels and excludes any time spent changing the layout of the data. 
+Time spent changing data layouts is reported as "Conversion." 
+The third reported component is "Cost Estimation,", which refers to the time spent estimating the cost coefficients for the objective function. 
+The fourth reported component is "ISL Space". 
+This refers to the time spent in the ISL library initializing the constrained decision space. 
+The fifth component is "ISL Func," referring to the time spent initializing the objective function object. 
+Last is "ISL Solve," which reports the time spent identifying the point in the decision space with the lowest cost. 
+
+\subsection{Experiment Descriptions}
+The first experiment examines the effect of the computation problem size on the models.
+Here, we hold the Dimensonality constant at 2 and the View Count at 3. We also use the same user constraints for all runs, using the optimal transformations based on an analysis of the data accesses.
+The problem sizes used are $2^i$ for $i \in [15..20]$.
+We hypothesize that changing the problem size will not impact the time spent in the model as the problem size does not impact the complexity of the models. Consequently, as the problem size increases, we expect higher speedups because the proportional contribution of the model overhead decreases. 
+
+The second experiment examines the effect of changing the number of format decisions registered by the user. 
+Here we hold the Dimensionality at 2, the Problem Size at $10^6$, and the View Count at 1. 
+We vary the number of user constraints from 0 to 4. 
+We hypothesize that each additional registered decision will reduce the ISL Solve time by approximately 2, as each registered decision cuts the size of the decision space in half.
+
+The third experiment examines the effect of changing the number of Views for which \FormatDecisions{} decides the format. 
+We hold the Dimensionality at 2, the Problem Size at $10^6$, and the constraints to the same set as the first experiment.
+We vary the number of Views from 1 to 3.
+We hypothesize that there will be a linear increase in the time spent preparing the decision space and the objective function, as each View is modeled seperately. 
+We further hypothesize that, because the third View (F) has two decisions registered, the change in solve time from adding the third View will be about half of that from adding the second View. 
+
+Finally, the fourth experiment varies the Dimensionality between 2 and 3. We hold the Problem Size at $10^6$, the View Count at 3, and user constraints at the analytical choice from the previous experiments. 
+We hypothesize a significant increase in execution time between 2 and 3 dimensional data, as the size of the decision space increases by 9 for the first model and by 3 for the second. This will impact both the setup and solve.
+
+\subsection{Experiment Results}
+
+Figures~\ref{instrumentation1_1} and \ref{instrumentation1_2} show the results of the first experiment. 
+Figure~\ref{instrumentation1_2} confirms the hypothesis that changes to the computation's problem size do not affect the time spent solving the models.
+It also shows that the second model outperforms the first model for all three \verb.isl. components.
+Figure~\ref{instrumentation1_1} supports the hypothesis that as problem size increases, the speedup increases. 
+For the $2^{20}$ problem size, there is a anomolous result in that \FormatDecisions{} outperforms the hand-implemented transformations. 
+This will require further examination to understand the cause, but it may be due to the code that applies the transformation, or the model identifying a more optimal ordering of the conversions.
+
+\begin{figure}
+	\includegraphics[width=\columnwidth]{instrumentation_experiment1_part1.pdf}
+	\caption{Execution time of models and computation for different problem sizes.}
+	\label{instrumentation1_1}
+\end{figure}
+\begin{figure}
+	\includegraphics[width=\columnwidth]{instrumentation_experiment1_part2.pdf}
+	\caption{Execution time of models only for different problem sizes}
+	\label{instrumentation1_2}
+\end{figure}
+
+Figure~\ref{instrumentation2} shows the results of the second experiment.
+For both models, the number of constraints had no impact on the time spent initializing the decision space and the objective function as hypothesized. 
+For the second model, the solve time decreases as the number of user constraints increases.
+However, even with all four constraints set, there is still a small amount of time spent identifying the optimal point. 
+This may be due to some constant amount of time required for preparing the decision space for iteration. 
+For the first model, while solving takes less time for four constraints than for zero, there is not a consistent reduction in solve time for the intermediate points.
+
+\begin{figure}
+	\includegraphics[width=\columnwidth]{instrumentation_experiment2_part1.pdf}
+	\caption{Execution time of models only for different numbers of user constraints.}
+	\label{instrumentation2}
+\end{figure}
+
+Figure~\ref{instrumentation3} shows the results of the third experiment. 
+The results support the hypothesis of an approximately linear relationship for the space and function construction and a smaller solve time increase when adding the third View compared to adding the second.
+
+\begin{figure}
+	\includegraphics[width=\columnwidth]{instrumentation_experiment3_part2.pdf}
+	\caption{Execution time of models only for different numbers of Views in the \FormatDecisions{} object.}
+	\label{instrumentation3}
+\end{figure}
 %%%%%%%%%%%%%%%%%%%%%%
+
+Finally, Figure~\ref{instrumentation4_1} shows the results of the fourth experiment. While the second implementation does reduce the overhead of setting up and solving the ILP problem, the additional overhead from adding a third data dimension is still significant.
+
+\begin{figure}
+	\includegraphics[width=\columnwidth]{instrumentation_experiment4_part1.pdf}
+	\caption{Execution time for different data dimensionality}
+	\label{instrumentation4_1}
+\end{figure}
 \section{Evaluation}
 \label{sec:eval}
 

@@ -12,10 +12,4 @@ $(DOC): $(DOC).tex
 clean:
 	-rm *.bbl *.aux *.blg *.div *.log *.ps 
 
-figures:
-	git pull
-	git submodule init
-	git submodule update --remote
-	./generate_plots.sh
-
 all: figures $(DOC)
