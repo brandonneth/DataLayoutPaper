@@ -15,7 +15,7 @@
 \usepackage{array} 
 \usepackage{comment}
 \usepackage{graphicx}
-
+\usepackage[T1]{fontenc}
 \usepackage{csquotes}
 \usepackage{balance}
 \usepackage{setspace}
@@ -30,6 +30,7 @@
 \lstset{ %
 language=C++,                % choose the language of the code
 basicstyle=\ttfamily\footnotesize,       % the size of the fonts that are used for the code
+commentstyle = \color{ForestGreen},
 columns=fullflexible,
 numbers=left,                   % where to put the line-numbers
 numberstyle=\footnotesize,      % the size of the fonts that are used for the line-numbers
@@ -369,9 +370,9 @@ Figure~\ref{graphModel} shows this formulation for the View \verb.F. in the 3MM 
 	
 	\begin{subfigure}[t]{0.2\textwidth}
 		\includegraphics[page=1,width=\textwidth]{Model\ Progression.pdf}
-		\caption{Initial state of the optimization problem. The only constraint is that only one format can be used per computation.}
+		\caption{Initial state of the optimization problem.}
 	\end{subfigure}
-	\hspace{0.02\textwidth}
+	\hspace{0.05\textwidth}
 	\begin{subfigure}[t]{0.2\textwidth}
 		\includegraphics[page=2,width=\textwidth]{Model\ Progression.pdf}
 		\caption{After registering that F should be row-major during the second computation.}
@@ -381,7 +382,7 @@ Figure~\ref{graphModel} shows this formulation for the View \verb.F. in the 3MM 
 		\includegraphics[page=3,width=\textwidth]{Model\ Progression.pdf}
 		\caption{After registering that F should be column-major during the third computation.}
 	\end{subfigure}
-	\hspace{0.02\textwidth}
+	\hspace{0.05\textwidth}
 	\begin{subfigure}[t]{0.2\textwidth}
 		\includegraphics[page=4,width=\textwidth]{Model\ Progression.pdf}
 		\caption{After the input format has been set. This is the final state that the optimization problem solves.}
@@ -389,6 +390,7 @@ Figure~\ref{graphModel} shows this formulation for the View \verb.F. in the 3MM 
 
 	\caption{Graphical representation of the layout optimization problem for a View in 3MM. User choices constrain the possible paths through the graph.}
 	\label{graphModel}
+	\Description[Optimization Graph Constraints]{Four directed graphs with edges progressively removed.}
 \end{figure}
 
 \subsection{Constructing the Objective Function}
@@ -512,6 +514,7 @@ auto knl2 = make_kernel<Policy_201>(segs, matmul_lambda);
 	\end{subfigure}
 	\caption{Extracting access orders from computation objects.}
 	\label{accessOrder}
+	\Description[Access Order Extraction]{Three panels. The first shows two implementations of matrix multiplication, the second the calculation process for extracting access orders, and the third the information extracted from the kernel that is used to generate the access order.}
 \end{figure*}
 
 
@@ -612,9 +615,9 @@ The RAJAPerf suite is a collections of computations from large scientific comput
 We target 4 benchmarks from the suite, all from the Polybench~\cite{pouchet2012polybench} and create one new computation based on miniQMC\todo{cite}.
 
 
-While other benchmarks in the suite have the potential for data layout optimization, they present imperfect nesting and non-rectangular iteration spaces, which are not currently supported by our implementation. 
+While other benchmarks in the suite have the potential for data layout optimization, they present imperfect nesting and triangular iteration spaces, which are not currently supported by our implementation. 
 Future work will add support for imperfect nesting through updating our cost estimator and symbolic evaluator to handle kernel calls with multiple lambdas. 
-Support for non-rectangular iteration spaces is also part of our future research directions, but will require additional modification to the base RAJA library.
+Support for triangular iteration spaces is also part of our future research directions, but will require additional modification to the base RAJA library.
 
 For each benchmark, we implemented 5 different variants and compared their relative speedup and the number of code changes necessary to go from the original implementation to the variant implementation.
 
@@ -688,105 +691,105 @@ This is because the \verb.Hand_Layout. variant is identical to the \verb.RAJALC.
 \end{figure}
 
 
-\subsection{Experiment 2: Exhaustive Search for \textsc{2mm}}
+% \subsection{Experiment 2: Exhaustive Search for \textsc{2mm}}
 
-Our second experiment further examines the efficacy of our model. 
-Whereas the experiments of in Section~\ref{sec:AccessMetric} examined the efficacy of access order representing individual accesses, this experiment considers the model as a whole.
-For the \textsc{2mm} benchmark, we evaluated the performance of all possible format choices and compare their execution times against their model scores (the value of the objective function for that choice).
-We average execution times over five runs.
-The absolute accuracy of our model is measured by the correlation between the execution time and the model score.
-However, we are most interested in the \textit{relative} accuracy of our model.
-A model is more relatively accurate when choices with better model scores have lower execution times, regardless of the specific values of the score or execution time.
+% Our second experiment further examines the efficacy of our model. 
+% Whereas the experiments of in Section~\ref{sec:AccessMetric} examined the efficacy of access order representing individual accesses, this experiment considers the model as a whole.
+% For the \textsc{2mm} benchmark, we evaluated the performance of all possible format choices and compare their execution times against their model scores (the value of the objective function for that choice).
+% We average execution times over five runs.
+% The absolute accuracy of our model is measured by the correlation between the execution time and the model score.
+% However, we are most interested in the \textit{relative} accuracy of our model.
+% A model is more relatively accurate when choices with better model scores have lower execution times, regardless of the specific values of the score or execution time.
 
-\begin{figure}
-	\includegraphics[width=\columnwidth]{2mm-all.pdf}
-	\caption{Execution time and model score of all possible format choices for the 2MM kernel. The model selects the choice with the lowest score. Outlier shown as red triangle. All dimension sizes are 1024.}
-	\label{2MMAllChoices}
-	\Description[Model Score and Execution Time]{Fully described in the text.}
-\end{figure}
-
-
-Figure~\ref{2MMAllChoices} plots the model scores and execution times for the different choices. 
-While the overall relationship between model score and execution is as expected, there is one notable outlier, colored in red.
-This point, which represents the choice that makes no changes to the data's format, has an unusually high model score for its relatively low execution time. 
-This is potentially attributable to our model overestimating the cost of a non-ideal data layout and underestimating the cost of changing formats. 
-
-This experiment also uncovers a limitation of our approach.
-Notice that many of the different format choices have the same model score.
-While their execution times do cluster, there is still variability in their distribution.
-When there are multiple choices with   the best model score, the final choice is random amongst them.
-Future work will need to develop a procedure for making a more intelligent selection among the well-scoring options. 
-This may involve considering the cache interactions of the different references in a kernel. 
+% \begin{figure}
+% 	\includegraphics[width=\columnwidth]{2mm-all.pdf}
+% 	\caption{Execution time and model score of all possible format choices for the 2MM kernel. The model selects the choice with the lowest score. Outlier shown as red triangle. All dimension sizes are 1024.}
+% 	\label{2MMAllChoices}
+% 	\Description[Model Score and Execution Time]{Fully described in the text.}
+% \end{figure}
 
 
+% Figure~\ref{2MMAllChoices} plots the model scores and execution times for the different choices. 
+% While the overall relationship between model score and execution is as expected, there is one notable outlier, colored in red.
+% This point, which represents the choice that makes no changes to the data's format, has an unusually high model score for its relatively low execution time. 
+% This is potentially attributable to our model overestimating the cost of a non-ideal data layout and underestimating the cost of changing formats. 
 
-
-
-\section{Related Work}
-
-Early approaches to optimizing data locality use schedule transformations rather than data layout transformations. 
-Work incorporated into the SUIF compiler uses interchange, reversal, skewing, and tiling~\cite{wolf1991data}, whereas Fortran source-to-source approaches also use loop fusion~\cite{mckinley1996improving}.
-While schedule transformations avoid the overhead cost of layout conversion, their global nature can improve locality for one access while harming another.
-Nevertheless, schedule transformations remain a popular approach to optimizing data locality and parallelism, 
-especially through tiling techniques~\cite{bondhugula2008pluto,bertolacci2015parameterized,bondhugula2016diamond,bandishti2012tiling,unat2016tida}.
-
-In the domain of data layout transformations, early work in High Performance Fortran (HPF) and D compilers~\cite{bixby1994automatic,kennedy1995automatic,kennedy1998automatic} provide foundations for a variety of later approaches.
-Their framework follows a popular pattern: generate a space of possible choices, estimate the performance of different choices, and select an option using an ILP formulation. 
-Our ILP problem formulation is similar to theirs, although we do not use the data layout graph intermediate representation.
-Furthermore, where their model for cost estimation focuses on communication costs in a distributed context, our approach models on-node performance costs of cache misses.
-
-The polyhedral model, traditionally used for schedule transformations, is commonly leveraged for data layout transformations as well.
-With the rise of multicore chips, new strategies were needed to manage shared on-chip resources. 
-Work by Lu et al.~\cite{lu2009data} and Zhang et al.~\cite{zhang2011optimizing} develop layout optimization schemes based on the polyhedral model and use a combination of strip-mining, permutation, and padding transformations.
-
-
-Data layout transformation frameworks are also popular for heterogeneous programming systems, especially for stencil codes.
-Sung, Stratton, and Hwu~\cite{sung2010data} use data layout transformations to relieve pressure on memory controllers in structured grid applications by spreading data out across the address space based on the indexing behavior of the application.
-Henretty et al.~\cite{henretty2011data} develop a layout transformation and accompanying static analysis to address stream alignment conflicts for SIMD architectures.
-Jaeger and Barthou~\cite{jaeger2012automatic} present a strategy for generating stencil codes with optimal data layouts using a multi-padding layout transformation.
-Recognizing the need for specialized support for ever-changing chip structure, Majeti et al.~\cite{majeti2013compiler} develop a programmer (or autotuner) guided data transformation system.
-Built into the Habenero-C compiler, the meta-data provided by the user guides the generation of architecture-specific SOA, AOS, and SOAOS data layouts.
-Another approach by Kofler, Cosenza, and Fahringer~\cite{kofler2015automatic} convert AOS implementations to other data layouts for GPU applications automatically.  
-With the exception of Majeti et al., these approaches do not provide an interface to the developer, and without exception are compiler-based approaches.
-Our approach presents an interface to the developer in the form of a library API, allowing user control and low-cost integration into existing workloads.
-
-Although still in the realm of the compiler-based tecniques, pragmas have been suggested as a solution to the problem of providing control over the transformations to the user.
-Proposals to add such pragmas have been submitted to OpenMP~\cite{kruse2019design} and Clang~\cite{kruse2018user}.
-Other work has implemented transformation pragmas into a source-to-source compiler~\cite{xu2014semi}. 
-
-
-Domain-specific language approaches are another avenue for presenting users with control of the data layout transformations to apply. 
-Kronawitter et al.~\cite{kronawitter2018automatic} incorporate data layout specifications into the ExaSlang DSL.
-Using a polyhedral framework, the Tiramisu DSL~\cite{baghdadi2019tiramisu} also enables data layout transformation specifications.
-In constrast to these specialized approaches, our approach seeks to support a wider class of computations without needing the additional machinery required to use DSLs. 
+% This experiment also uncovers a limitation of our approach.
+% Notice that many of the different format choices have the same model score.
+% While their execution times do cluster, there is still variability in their distribution.
+% When there are multiple choices with   the best model score, the final choice is random amongst them.
+% Future work will need to develop a procedure for making a more intelligent selection among the well-scoring options. 
+% This may involve considering the cache interactions of the different references in a kernel. 
 
 
 
 
 
+% \section{Related Work}
 
-\section{Conclusion}
+% Early approaches to optimizing data locality use schedule transformations rather than data layout transformations. 
+% Work incorporated into the SUIF compiler uses interchange, reversal, skewing, and tiling~\cite{wolf1991data}, whereas Fortran source-to-source approaches also use loop fusion~\cite{mckinley1996improving}.
+% While schedule transformations avoid the overhead cost of layout conversion, their global nature can improve locality for one access while harming another.
+% Nevertheless, schedule transformations remain a popular approach to optimizing data locality and parallelism, 
+% especially through tiling techniques~\cite{bondhugula2008pluto,bertolacci2015parameterized,bondhugula2016diamond,bandishti2012tiling,unat2016tida}.
+
+% In the domain of data layout transformations, early work in High Performance Fortran (HPF) and D compilers~\cite{bixby1994automatic,kennedy1995automatic,kennedy1998automatic} provide foundations for a variety of later approaches.
+% Their framework follows a popular pattern: generate a space of possible choices, estimate the performance of different choices, and select an option using an ILP formulation. 
+% Our ILP problem formulation is similar to theirs, although we do not use the data layout graph intermediate representation.
+% Furthermore, where their model for cost estimation focuses on communication costs in a distributed context, our approach models on-node performance costs of cache misses.
+
+% The polyhedral model, traditionally used for schedule transformations, is commonly leveraged for data layout transformations as well.
+% With the rise of multicore chips, new strategies were needed to manage shared on-chip resources. 
+% Work by Lu et al.~\cite{lu2009data} and Zhang et al.~\cite{zhang2011optimizing} develop layout optimization schemes based on the polyhedral model and use a combination of strip-mining, permutation, and padding transformations.
 
 
-We conclude with a number of limitations and directions for future work.
-The main limitation of the present study is the extent of the evaluation.
-While four benchmark programs gives a general picture of our technique and its impact, more benchmark kernels need to be examined.
-Similarly, an evaluation should be completed on a full application rather than only on benchmark loops.
-Addressing this limitation will require support for more complex loop nests and iteration spaces, as discussed in Section~\ref{sec:Experiment1}.
-Another limitation is the singular nature of our performance model.
-Future work should incorporate an interface for defining and using different performance models, allowing users to prioritize different aspects of the transformation decision.
-Currently, the performance model runs with user inputs as strict constraints.
-While this is a deliberate design decision to give users full control over the optimization, future work should provide warnings if the model identifies a better choice than the one selected by the user. 
-The data layout transformations presented in this paper work only in isolation. 
-An element of future work will support the simultaneous specification of data layout and loop schedule transformations. 
-Lastly, our approach to the data format problem herein only targets different dimension orderings for dense arrays. 
-This technique could be extended to work for sparse arrays as well. 
+% Data layout transformation frameworks are also popular for heterogeneous programming systems, especially for stencil codes.
+% Sung, Stratton, and Hwu~\cite{sung2010data} use data layout transformations to relieve pressure on memory controllers in structured grid applications by spreading data out across the address space based on the indexing behavior of the application.
+% Henretty et al.~\cite{henretty2011data} develop a layout transformation and accompanying static analysis to address stream alignment conflicts for SIMD architectures.
+% Jaeger and Barthou~\cite{jaeger2012automatic} present a strategy for generating stencil codes with optimal data layouts using a multi-padding layout transformation.
+% Recognizing the need for specialized support for ever-changing chip structure, Majeti et al.~\cite{majeti2013compiler} develop a programmer (or autotuner) guided data transformation system.
+% Built into the Habenero-C compiler, the meta-data provided by the user guides the generation of architecture-specific SOA, AOS, and SOAOS data layouts.
+% Another approach by Kofler, Cosenza, and Fahringer~\cite{kofler2015automatic} convert AOS implementations to other data layouts for GPU applications automatically.  
+% With the exception of Majeti et al., these approaches do not provide an interface to the developer, and without exception are compiler-based approaches.
+% Our approach presents an interface to the developer in the form of a library API, allowing user control and low-cost integration into existing workloads.
 
-Overall, data format is a key consideration when optimizing applications.
-Especially in performance portability libraries like RAJA, developers need tools to implement those optimizations without sacrificing productivity.
-\FormatDecisions{} gives developers those tools.
-By combining declarative user specification of data format with runtime performance modeling, we can offer the performance improvements of data layout changes with significantly less developer effort.
-% \balance
+% Although still in the realm of the compiler-based tecniques, pragmas have been suggested as a solution to the problem of providing control over the transformations to the user.
+% Proposals to add such pragmas have been submitted to OpenMP~\cite{kruse2019design} and Clang~\cite{kruse2018user}.
+% Other work has implemented transformation pragmas into a source-to-source compiler~\cite{xu2014semi}. 
+
+
+% Domain-specific language approaches are another avenue for presenting users with control of the data layout transformations to apply. 
+% Kronawitter et al.~\cite{kronawitter2018automatic} incorporate data layout specifications into the ExaSlang DSL.
+% Using a polyhedral framework, the Tiramisu DSL~\cite{baghdadi2019tiramisu} also enables data layout transformation specifications.
+% In constrast to these specialized approaches, our approach seeks to support a wider class of computations without needing the additional machinery required to use DSLs. 
+
+
+
+
+
+
+% \section{Conclusion}
+
+
+% We conclude with a number of limitations and directions for future work.
+% The main limitation of the present study is the extent of the evaluation.
+% While four benchmark programs gives a general picture of our technique and its impact, more benchmark kernels need to be examined.
+% Similarly, an evaluation should be completed on a full application rather than only on benchmark loops.
+% Addressing this limitation will require support for more complex loop nests and iteration spaces, as discussed in Section~\ref{sec:Experiment1}.
+% Another limitation is the singular nature of our performance model.
+% Future work should incorporate an interface for defining and using different performance models, allowing users to prioritize different aspects of the transformation decision.
+% Currently, the performance model runs with user inputs as strict constraints.
+% While this is a deliberate design decision to give users full control over the optimization, future work should provide warnings if the model identifies a better choice than the one selected by the user. 
+% The data layout transformations presented in this paper work only in isolation. 
+% An element of future work will support the simultaneous specification of data layout and loop schedule transformations. 
+% Lastly, our approach to the data format problem herein only targets different dimension orderings for dense arrays. 
+% This technique could be extended to work for sparse arrays as well. 
+
+% Overall, data format is a key consideration when optimizing applications.
+% Especially in performance portability libraries like RAJA, developers need tools to implement those optimizations without sacrificing productivity.
+% \FormatDecisions{} gives developers those tools.
+% By combining declarative user specification of data format with runtime performance modeling, we can offer the performance improvements of data layout changes with significantly less developer effort.
+% % \balance
 
 \bibliographystyle{abbrv}
 \bibliography{DataRAJALC}
