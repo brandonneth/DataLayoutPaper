@@ -61,7 +61,7 @@ escapeinside={<@}{@>}
 
 \graphicspath{{./graphics/}{.}}
 
-%\usepackage[subtle]{savetrees}
+\usepackage[subtle]{savetrees}
 \vbadness=18000
 \vfuzz=2pt
 \title{\FormatDecisions{}: User-Guided Data Layout Optimization in RAJA}
@@ -107,15 +107,13 @@ escapeinside={<@}{@>}
 
 The layout of data in memory is a key consideration in high performance computing applications.
 From reducing cache and page misses to relieving pressure on memory bandwidth and avoiding inter-process communication, a good data layout improves performance at all levels of an application.
-RAJA, a C++ performance portability library, incorporates the layout of an application's data into its interface.
-Thus, a developer can try different layouts without major refactoring costs.
-However, some applications benefit from changing the data layout mid-computation to facilitate better locality.
-Implementing such a mid-computation layout change in RAJA can improve performance, but is laborious to implement and lacks portability.
-This work remedies RAJA's shortcoming by introducing a lightweight, declarative API for changing data layouts between computations.
+While performance portability libraries like RAJA and Kokkos incorporate the data's layout into its initialization, some applications benefit from changing the data layout between kernels.
+Because these libraries do not support changing the data layout after initialization, application performance can suffer. 
+We remedy this shortcoming by prototyping a lightweight, declarative API for changing data layouts between computations in RAJA.
 We then extend the library with existing compiler technology to guide the use of layout changes based on our runtime performance model of their cost and benefit.
 Thus, the model and runtime combine to \enquote{fill in} layout choices that the user did not specify.
 Our approach allows the user to specify as much of the layout information as they please and still obtain the performance benefits of changing data layouts.  
-Further, \FormatDecisions{} is built directly into the RAJA library, meaning that no additional build steps are required.
+Further, because \FormatDecisions{} is built directly into the library, no additional build steps are required.
 We evaluate \FormatDecisions{} on four benchmarks from the RAJAPerf Suite, where it achieves similar performance improvements to hand-implemented optimizations.
 \end{abstract}
 \maketitle
@@ -125,16 +123,10 @@ We evaluate \FormatDecisions{} on four benchmarks from the RAJAPerf Suite, where
 
 
 \section{Introduction}
-
-How data is stored and accessed has always been recognized as a key influence on overall performance.
-For example, on a typical cache-based system, iterating through a two-dimensional array in column-order when data is 
-stored in row-order can lead to significant slowdown. 
+Data storage and access patterns are a key influence on overall application performance. 
+For example, on a typical cache-based system, iterating through a two-dimensional array in column-order when data is stored in row-order can lead to significant slowdown. 
 Although mechanisms such as compiler optimizations~\cite{wolf1991data,bixby1994automatic}
-and data layout policies like those in Kokkos~\cite{edwards2014kokkos} and RAJA~\cite{hornung2014RAJA} can align data layout with computation schedules, they lack user controls or become difficult to automate and laborious to manage by hand as the number of loops and arrays grow.
-
-In this paper, we present \FormatDecisions{}, an approach for exposing data layout decisions to the programmer in the C++ portable, parallel library RAJA.
-The presented API allows the programmer to specify as many data layout decisions in a sequence of data-sharing loops (otherwise known as a loop chain~\cite{krieger2013loop}) as they choose.
-Then, using a portable cost model based on microbenchmarking, \FormatDecisions{} identifies any remaining layout changes estimated to improve performance.  
+and data layout policies like those in Kokkos~\cite{edwards2014kokkos} and RAJA~\cite{hornung2014RAJA} can align data layout with computation schedules, compiler optimizations lack user controls and layout policies become difficult to automate and laborious to manage by hand as the number of loops and arrays grow.
 
 Figure~\ref{IntroExample} shows the importance of a good data layout. 
 The BadLayout column shows the execution time for a matrix multiplication where the three arrays are laid out opposite of their access order. 
@@ -143,16 +135,12 @@ The LayoutChange column shows the execution time of code that changes the layout
 Finally, the SwitchAndRun column shows the combined execution time of changing the layout from bad to good and then running.
 As the graph shows, performance improves  significantly (72\%) simply by changing the data layout, and the cost of performing the layout change is small (<1\% of execution time). 
 
-
 \begin{figure}
 	\includegraphics[width=\columnwidth]{IntroExampleGraph.pdf}
 	\caption{Execution time for matrix multiplication using optimal and non-optimal data layouts and execution time for converting from non-optimal to optimal. Section~\ref{sec:eval} for machine and compilation information.}
 	\label{IntroExample}
 	\Description[Matrix Multiplication Execution Time for Different Layouts]{A bar plot showing a "Bad Layout" column with execution time greater than the "Good Layout" and "Layout Conversion" columns combined.}
 \end{figure}
-
-
-
 
 General purpose libraries like Kokkos and RAJA and programming languages like Chapel~\cite{diaconescu2007approach} give programmers some control over the data layout of multi-dimensional arrays. However, this support is limited to the point of initialization.
 Thus, programmers must use that particular data format for the entire computation.
@@ -161,34 +149,39 @@ Both options increase the code complexity and increase its fragility.
 The brave developer who chooses one of these options must still overcome yet another obstacle: selecting the right combination of formats.
 Even a modest computation of two loops that use four 2D arrays has more than 200 combinations from which to choose, so trying all possible options quickly becomes infeasible. 
 
+In this paper, we present \FormatDecisions{}, an approach for exposing data layout decisions to the programmer in the C++ portable, parallel library RAJA.
+The presented API allows the programmer to specify as many data layout decisions in a sequence of data-sharing loops (otherwise known as a loop chain~\cite{krieger2013loop}) as they choose.
+Then, using a portable cost model based on microbenchmarking, \FormatDecisions{} identifies any remaining layout changes estimated to improve performance. 
+
 A significant body of work has developed Integer Linear Programming (ILP) formulations to determine data layouts in distributed memory settings for programming languages like HPF and D~\cite{bixby1994automatic,kennedy1995automatic,kennedy1998automatic}. 
 A similar line of work~\cite{chen2004ilp,chen2005constraint,chen2005integrating, ozturk2011data} uses ILP-based constraint networks to combine data layout and schedule optimizations. 
 Both approaches were developed in the context of a compiler. 
-We build on an important idea from them: use a performance model encoded as the objective function in an ILP problem to automate data layout decisions (partially or fully).
+We build on their use of a performance model encoded as the objective function in an ILP problem to automate data layout decisions (partially or fully).
 Rather than only applying this data layout compiler technology automatically, we provide it to the user through a library interface while still enabling its automated use.
 Our library and runtime approach allows the user to guide use of the technology to focus on loops most likely to benefit from it.
-However, the library must perform its analysis and decision making at runtime and the interface must be high-level while still providing enough control. 
-These challenges lead to a number of sub-problems such as interface design so that the analysis cost is low (enough) while maintaining ease of use.
-A compiler approach can take longer and has all information that the language semantics provide.
-Some advantages of a library approach are that it is more accessible to users and the library implementation will have more information available, such as loop bounds, accessible at runtime before a loop executes.
-Although useful advantages, these lead to further sub-problems about how the library implementation can most leverage the compiler of the language in which it is embedded (C++ here) to force as much specialization as possible to achieve the ultimate goal of performance.
+However, where a compiler can run complex analyses without a runtime cost, the library must perform its analysis and decision-making at runtime and the interface must be high-level while still providing enough control. 
+While a library approach comes with runtime overhead, it is more accessible to users and has access to runtime information that the compiler may not, such as loop bounds.
+Although useful advantages, these lead to sub-problems about how the library implementation can most leverage the compiler of the language in which it is embedded (C++ here) to force as much specialization as possible to achieve the ultimate goal of performance.
 
-We extend the RAJA C++ library to address this gap in support of data layout optimizations.
-First, \FormatDecisions{} exposes a lightweight API for implementing mid-computation data layout optimizations.
-We provide two methods --- \verb.set_format_before. and \verb.set_format_after. --- so the user can ensure the use of appropriate known formats \footnote{Since we completely expose the control, an autotuner can also try different options.}.
-While the user can specify any known formats, a performance model guides any unspecified choices.
-Based on run-time microbenchmarking, the model selects format changes through the solution of an ILP problem that considers the cost of converting formats against the potential improvement with an alternative format.
-Our inclusion of a performance model means a developer can obtain performance improvement without having to determine the sequence of format changes themselves.
-%% BRONIS: Most autotuning approaches do not use exhaustive testing
-%% BRONIS: I think one could argue that we use the ILP problem to autotune
-%% or use an autotuner to try every possible option.
+ 
+
+
+% We extend the RAJA C++ library to address this gap in support of data layout optimizations.
+% First, \FormatDecisions{} exposes a lightweight API for implementing mid-computation data layout optimizations.
+% We provide two methods --- \verb.set_format_before. and \verb.set_format_after. --- so the user can ensure the use of appropriate known formats \footnote{Since we completely expose the control, an autotuner can also try different options.}.
+% While the user can specify any known formats, a performance model guides any unspecified choices.
+% Based on run-time microbenchmarking, the model selects format changes through the solution of an ILP problem that considers the cost of converting formats against the potential improvement with an alternative format.
+% Our inclusion of a performance model means a developer can obtain performance improvement without having to determine the sequence of format changes themselves.
+% %% BRONIS: Most autotuning approaches do not use exhaustive testing
+% %% BRONIS: I think one could argue that we use the ILP problem to autotune
+% %% or use an autotuner to try every possible option.
 
 This paper includes the following contributions:
 \begin{itemize}
 \item An API in RAJA for specifying data layouts and data layout transformations;
 \item A performance model to select data layouts based on runtime microbenchmarking and a data layout transformation strategy for a loop chain;
 \item An optimization that increases the reuse of microbenchmarking information; and
-\item Performance results and source lines of code (SLOC) for five variants of four benchmark kernels comparing hand-implemented optimizations to our system.
+\item Performance results and source lines of code (SLOC) for five variants of four benchmark kernels comparing \FormatDecisions{} to hand-implemented optimization.
 \end{itemize} 
 
 The rest of the paper proceeds as follows. 
@@ -204,14 +197,14 @@ Section 7 reviews related work and section 8 concludes.
 
 \begin{figure}
 	\begin{lstlisting}[
-		caption={The running example for this paper. 
-		We start with an implementation of the 3MM kernel (E = A * B, F = C * D, G = E * F) in RAJA.},
+		caption={The 3MM kernel (E = A * B, F = C * D, G = E * F) implemented using RAJA.},
 		label={3MMStart}]
-	auto layout_01 = make_permuted_layout(sizes, {{0,1}});
-	auto layout_10 = make_permuted_layout(sizes, {{1,0}});
-	View2D A(A_data, layout_01);
-	View2D B(B_data, layout_10);
-	... initializations proceed similarly for C-G with layout_01
+	auto row_major = make_permuted_layout(sizes, {{0,1}});
+	auto column_major = make_permuted_layout(sizes, {{1,0}});
+
+	View2D A(A_data, row_major);
+	View2D B(B_data, column_major);
+	... initializations proceed similarly for C-G with row_major
 
 	auto loop_body1 = [&](auto i0, auto i1, auto i2) {
 		E(i0, i1) += A(i0,i2) * B(i2,i1);
@@ -261,34 +254,28 @@ The template parameter describes the schedule of the computation as an execution
 Each level of the loop has its own schedule, where \verb.omp_parallel_for_exec. indicates an OpenMP parallel loop and \verb.loop_exec. indicates the compiler should make the decision.
 Other policies exist for vectorization and GPU-offloading.
 The runtime parameters describe the computation itself. 
-The first parameter is the iteration space for the loop, defined on lines 27 and 28. 
+The first parameter is the iteration space for the loop, in this case 3 dimensional, defined on lines 27 and 28. 
 The second parameter is the loop body to execute for each iteration, passed as a lambda.
 The three loop bodies are defined on lines 7 through 15.
 After the computation objects are created on lines 30 through 32, they are executed through the call operator on lines 34 through 36.
 
-RAJA also provides an array wrapper class called a View.
+RAJA also provides array wrappers called Views.
 The View object has a number of capabilities that make it a valuable tool within RAJA codes.
 First, Views use the call operator to perform memory accesses. 
 By overloading this call operator for symbolic iterator types, RAJALC enables the runtime symbolic evaluation of kernels that use Views.
 RAJALC uses the access information gathered from symbolic evaluation to ensure the correctness of its scheduling optimizations.
 This work uses RAJALC's runtime symbolic evaluation to inform our performance model.
-
 Second, Views fully parameterize their underlying data formats with the Layout object.
 Without Views, to switch their data from row-major to column-major, a programmer must change the definition of the array \textit{and} must change every access \verb.A[i][j]. to \verb.A[j][i].
 This mechanism is prohibitively expensive, especially when the programmer does not yet know the performance impact of the decision.
 With Views however, the programmer only needs to change the View's definition: the layout permutation changes from $(0,1)$ to $(1,0)$. 
-In Listing~\ref{3MMStart}, \verb.A. is defined with the normal $(0,1)$ layout, but \verb.B. is defined with the $(1,0)$ layout. 
+In Listing~\ref{3MMStart}, \verb.A. is defined with the row-major $(0,1)$ layout, but \verb.B. is defined with the column-major $(1,0)$ layout. 
 Note that the change in \verb.B.'s layout does not change how it is used in the computation. 
 
-
-
-
-\section{User Specification of Data Format}
-
-Throughout a computation, different parts of the computation access data in different orders.
-For example, consider the Views \verb.A., \verb.B., and \verb.D. in Listing~\ref{3MMStart}. 
+Through the computation, the data is accessed in different orders.
+For example, consider the Views \verb.A., \verb.B., and \verb.D..
 The order in which \verb.A. is accessed is different from \verb.D. because the argument order in their accesses are different.
-In contrast, while \verb.B. and \verb.D. have the same argument order, their access order is still different because they have different layouts.
+In contrast, while \verb.B. and \verb.D. have the same argument order, their access orders are still different because they have different layouts.
 Looking at the two references to \verb.F. in kernels two and three, we can see that even access order to the same data can change through a computation.
 Because different formats are optimal for different kernels, this creates an opportunity for optimization. 
 
@@ -299,36 +286,13 @@ To implement such a layout change by hand requires the programmer to allocate a 
 copy the data from the View to the temporary array in the right order, 
 copy the data \textit{back} to the memory in the View, 
 and then finally update the View's layout object.
+This work removes that barrier by expanding the declarative data optimization system begun by RAJALC.
 
-This work removes that barrier by expanding the declarative data optimization system begun by RAJALC~\cite{neth2021inter}.
-While RAJALC tackled the problem of scheduling optimizations, we target making data format changes between computations. 
-To achieve this, we introduce a single user-facing class, appropriately named \verb.FormatDecisions..
-This class starts with a record of the computations and data under consideration.
-While the user can technically instatiate their \verb.FormatDecisions. objects using the class constructor, we provide a separate constructor function, \verb.format_decisions., to remove the need for the programmer to manage templating.
-The interface for this function is the same as the class constructor, and can be seen on line 11 of Listing~\ref{FormatDecisions3MM}.
-
-Once the \verb.FormatDecisions. object is created, the user then registers the formats they want to use for different computations.
-At first glance, it seems that a single method for registering choices would be sufficient. 
-Simply provide the View, the desired format, and the computation during which that format should be used.
-However, there are two problems with this approach.
-First, it is often desirable to specify a final output format that the data should be in after the computation is complete. 
-A single registering function cannot provide this capability.
-Second, using a single registering function creates a disconnect between the registration and when exactly the transformation will happen.
-For example, consider registering that View \verb.A. should use \verb.Format1. for the fourth kernel in a computation.
-Because it may be beneficial to switch to \verb.Format1. for the earlier kernels too, the registering function should indicate that the conversion is not necessarily occuring immediately before the fourth kernel.
-
-Our chosen design addresses these problems with two methods for registering format choices: \verb.set_format_before. and \verb.set_format_after..
-The names of the methods indicate their argument order of data, format choice, kernel. 
-We \verb.set. the data to the given \verb.format. either \verb.before. or \verb.after. the kernel. 
-Using a combination of these methods, flexible format choices can be registered for the computations and the final, outgoing format.
-These methods can be seen in use on lines 13-17 of Listing~\ref{FormatDecisions3MM}.
-
-After the user has registered their choices, the complete computation with interspersed format conversions is generated using the \verb.finalize. method.
-This is seen on line 19 of Listing~\ref{FormatDecisions3MM}.
+\section{The Transformation Interface}
 
 
 \begin{figure}
-\begin{lstlisting}[caption={The 3MM benchmark implemented using \FormatDecisions{}.},
+\begin{lstlisting}[caption={Changing data layouts in the 3MM benchmark using \FormatDecisions.},
 	label={FormatDecisions3MM}]
 auto knl1 = make_kernel<KPOL>(segs1, [=](auto i0, auto i1, auto i2) {
 	E(i0, i1) += A(i0, i2) * B(i2, i1);
@@ -340,206 +304,232 @@ auto knl3 = make_kernel<KPOL>(segs3, [=](auto i0, auto i1, auto i2) {
 	G(i0, i1) += E(i0, i2) * F(i2, i1);
 });
 
-auto decisions = format_decisions(tie(B,D,F), knl1, knl2, knl3);
+auto decisions = format_decisions(ref_tuple(B,D,F), knl1, knl2, knl3);
 
-decisions.set_format_before(B, {{1,0}}, knl1);
-decisions.set_format_before(D, {{1,0}}, knl2);
-
-decisions.set_format_before(F, {{0,1}}, knl1);
-decisions.set_format_after(F, {{1,0}}, knl2);
+decisions.set_format_for(B, {{1,0}}, knl1);
+decisions.set_format_for(D, {{1,0}}, knl2);
+decisions.set_format_for(F, {{0,1}}, knl2);
+decisions.set_format_for(F, {{1,0}}, knl3);
 
 auto computation = decisions.finalize();
 computation();
 \end{lstlisting}
 \Description{Fully described in the text.}
 \end{figure}
+Our approach introduces a single user-facing class, appropriately named \verb.FormatDecisions..
+These objects are initialized using the \verb.format_decisions. function with the data to transform and the computations in which the data will be used.
+\FormatDecisions{} supports four operations: registering format decisions, turning the supplementary modeling on and off, running the supplementary model, and generating the final computation.
 
+At first glance, it may seem that a single method for registering format choices would be sufficient. 
+Simply provide the View, the computation, and the format to use during that computation.
+However, it is often desirable to specify the format the data should be in at the end of the sequence of computations, especially when the sequence is run many times, for example as part of the time step in a simulation code.
+A single registering function cannot provide this capability. 
+Another important consideration is the registration semantics. 
+Should the user be registering format conversions or should they be registering the format with the assumption that any necessary conversion will be made?
+We argue that it should be the latter.
+First, registering formats is more declarative, as it does not dictate exactly how or when the data is converted to the desired format.
+Second, registering conversions requires specification of both the input and output formats. 
+Any conversion can be specified with two format registrations, but no number of conversion registrations can specify the same thing as a single format registration.
+With these considerations in mind, we decided on two methods: \verb.set_format_for. and \verb.set_output_format..
+\verb.set_output_format. takes a View and a dimensional ordering and ensures the View has that layout after the sequence of computations is done executing.
+\verb.set_format_for. takes as arguments the View, the desired dimensional ordering, and the computation. In choosing this method's name, the shorter \verb.set_format. was considered, but lacks \verb.set_format_for.'s mneumonic match between the words of the method name and the order of the parameters. We \textbf{set} the View to \textbf{format} X \textbf{for} computation Y. 
+Lines 13-16 of Listing~\ref{FormatDecisions3MM} show how these choices are registered for the 3MM kernel. 
 
+While we provide a supplementary decision model that can identify additional worthwhile layout changes, its use is not mandatory.
+In the case where the user does not want the supplementary model to run, they can use the \verb.lock. method. 
+
+Regardless of whether the user has turned the model off or left it on, 
+after the user has registered their choices, the complete computation with interspersed format conversions is generated using the \verb.finalize. method.
+This is seen on line 18 of Listing~\ref{FormatDecisions3MM}.
+If the user does not call the \verb.lock. method, this function also runs the model to identify additional changes that may be beneficial. The model will not overwrite user-registered decisions.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Constraint Model for Supplementary Transformations}
 
 In addition to the format changes registered by the user, \FormatDecisions{} also uses a constraint model to determine if additional format changes will improve performance. 
 This capability means that even without any registered format choices, \FormatDecisions{} often selects the same changes the user would themselves choose. 
-We encode the problem as an integer linear program where the solution represents our model's pick for the optimal layouts.
+We encode the problem as an optimization problem where constraints encode registered decisions and the objective function encodes the estimated costs of format use and conversion.
 
+\subsection{Constraining the Decision Space}
+The variables of this optimization problem are boolean decision variables representing the possible format choices. 
+For example, the optimization problem for a 2-dimensional View across 3 computations has 10 total variables: 2 for the input formats, 2 for each computation, and 2 for the output formats.
 
-We use binary decision variables representing whether or not a particular format is used at different points in the chain. 
-For example, there are eight decision variables for the \verb.B. View in Listing~\ref{FormatDecisions3MM}, one for each of the two possible formats at each of the four points in the chain. 
-While there are only three kernels in the chain, there is an additional point added for the \enquote{output} format that the View has after the computation is done.
-We also add constant variables for the format when the computation begins. 
-We also use decision variables to represent the required format conversions.
-We construct separate models for each View in the computation. 
+These variables are constrained in three ways.
+First, only one format can be used at a time. 
+This means that the sum of the variables for a specific computation must sum to 1. 
+Second, decisions from the user are satisfied by constraining the appropriate variables to equal 1. 
+Last, the input format variables are set based on the actual data format in use when the model is run. 
 
-Symbolically, we represent the variables as follows.
-To start, let $F$, $K$, and $T$ represent the set of all formats, kernels, and conversion times.
-Because we add additional elements to $K$ for the input and output formats, we know that $|K|$ is the number of user kernels plus 2.
-Furthermore, because there is one more conversion than kernel, we know that $|T| = |K| + 1$.
-For each kernel, we have one variable for each format. 
-Thus, let $fmt_{f,k}$ denote the variable for using the format $f$ during kernel $k$, where $f \in F$ and $k \in K$.
-For conversion variables, we have one variable for each possible conversion at each time point. 
-Thus, let $conv_{i,o,t}$ denote the decision variable for converting from format $i$ to to format $o$ at conversion time $t$, where $i,o \in F$ and $t \in T$.
-
-Four types of constraints are imposed on the decision variables.
-\begin{itemize}
-\item Format Uniqueness: At each time point, the View has exactly one selected format. Given by: 
-\begin{align*}
-	\bigwedge\limits_{k \in K} (1 = \sum\limits_{f \in F} fmt_{f,k})
-\end{align*}
-\item Conversion Uniqueness: At each conversion point, the View goes through exactly one conversion. Given by:
-\begin{align*}
-	\bigwedge\limits_{t \in T} (1 = \sum\limits_{i \in F}\sum\limits_{o \in F} conv_{i,o,t})
-\end{align*}
-\item Format-Conversion Matching, Input: At each conversion point, the input format for the conversion matches the format of the preceding kernel. Given by:
-\begin{align*}
-	\bigwedge\limits_{t \in T} \bigwedge\limits_{i \in F} fmt_{i,t.prev} = \sum\limits_{o \in F} conv_{i,o,t}
-\end{align*}
-\item Format-Conversion Matching, Output: At each conversion point, the output format for the conversion matches the format of the following kernel. Given by:
-\begin{align*}
-	\bigwedge\limits_{t \in T} \bigwedge\limits_{o \in F} fmt_{o,t.next} = \sum\limits_{i \in F} conv_{i,o,t}
-\end{align*}
-\item User Prescription: All user-provided format choices are met. With all user choices $U$ represented as pairs of kernels and the format the user wants for that kernel, given by:
-\begin{align*}
-	\bigwedge\limits_{(k,f) \in U}  fmt_{f,k} = 1
-\end{align*}
-\end{itemize}
-Figure~\ref{ConstraintExample} shows the variables in a model for a 2D View for a computation with three kernels. 
-For each kernel, we see two decision variables, one for using column-major and one for using row-major. 
-Similarly, for each conversion point, we see four decision variables, one for each combination of input and output format. 
-The green boxes indicate the terms that are part of a Format Uniqueness constraint and a Conversion Uniqueness constraint.
-The red and blue underline shows the part of the format and conversion decision variables that group them in the Format-Conversion Matching constraints. 
-
-The objective function is constructed using the estimated cost of the format choices and conversions. 
-Each decision variable is assigned a cost coefficient in the following manner.
-First, we execute and time a small loop with similar access patterns to the choice, then cache the result for later decision variables.
-Second, we multiply the result by the number of iterations the choice affects.
-For example, a conversion decision for \verb.B. in Listing~\ref{FormatDecisions3MM} would be multiplied by the dimensions of \verb.B..
-In contrast, a format decision for \verb.B. for \verb.knl1. would be multiplied by all three loop dimensions. 
-
-While we can estimate the cost of format conversions without information about the kernels themselves, the cost of using a format for a kernel depends on how that kernel accesses the data.
-Thus, we need to gather information about how each kernel accesses the data that may be transformed. 
-To do so, we use RAJALC's symbolic evaluation capabilities. 
-By defining an overloaded call operator in the View class, we can gather access information for each kernel at runtime. 
-Then, this access information is used to estimate the cost of using different formats. 
-Once all cost estimates are added to the objective function, we use the Integer Set Library~\cite{verdoolaege2010isl} to find the points in the space with the lowest overall cost estimates. 
-Listing~\ref{AlgObjFunc} shows a pseudocode algorithm for generating the objective function.
-Note that the costs associated with format variables are based on the uses of the Views within the computation. 
-Thus, if one kernel makes multiple accesses to the same View, it will have one cost term for each access.
-
+This optimization problem can intuitively formulated as a graph problem in which nodes represent using a format for a computation and the edges represent conversions between formats~\cite{kennedy1998automatic}. 
+Then, nodes and edges are assigned weights based on the cost of using that format or making that conversion. 
+In this formulation, the shortest path through the graph represents the optimal set of formats and conversions to use.
+Figure~\ref{graphModel} shows this formulation for the View \verb.F. in the 3MM benchmark from Listing~\ref{FormatDecisions3MM}.
 
 \begin{figure}
-\begin{lstlisting}[caption={Algorithm for constructing objective function.}, label={AlgObjFunc}]
-create_objective_function(view):
-	obj_func = new ObjectiveFunction()
 	
-	# cost estimates for conversions
-	for conversion_variable in conversion_variables:
-		coefficient = conversion_variable.estimate_cost() * view.size()
-		obj_func += (coefficient * conversion_variable)
-	
-	# cost estimates for accesses using different formats
-	for kernel in kernels:
-		view_accesses = kernel.evaluate_symbolically()
-		for access to view in accesses:
-			for fmt in formats:
-				format_variable = get_format_variable(view, fmt, kernel)
-				estimated_cost = format_variable.estimate_cost(access)
-				coefficient = estimated_cost * kernel.size()
-				obj_func += (coefficient * format_variable)
-	set_objective_function(obj_func)
-\end{lstlisting}
-\Description{Algorithm for the function to create the model's objective function. First it adds cost estimates for conversions, then adds cost estimates for the accesses in the computation.}
+	\begin{subfigure}[t]{0.2\textwidth}
+		\includegraphics[page=1,width=\textwidth]{Model\ Progression.pdf}
+		\caption{Initial state of the optimization problem. The only constraint is that only one format can be used per computation.}
+	\end{subfigure}
+	\hspace{0.02\textwidth}
+	\begin{subfigure}[t]{0.2\textwidth}
+		\includegraphics[page=2,width=\textwidth]{Model\ Progression.pdf}
+		\caption{After registering that F should be row-major during the second computation.}
+	\end{subfigure}
+
+	\begin{subfigure}[t]{0.2\textwidth}
+		\includegraphics[page=3,width=\textwidth]{Model\ Progression.pdf}
+		\caption{After registering that F should be column-major during the third computation.}
+	\end{subfigure}
+	\hspace{0.02\textwidth}
+	\begin{subfigure}[t]{0.2\textwidth}
+		\includegraphics[page=4,width=\textwidth]{Model\ Progression.pdf}
+		\caption{After the input format has been set. This is the final state that the optimization problem solves.}
+	\end{subfigure}
+
+	\caption{Graphical representation of the layout optimization problem for a View in 3MM. User choices constrain the possible paths through the graph.}
+	\label{graphModel}
 \end{figure}
 
-\section{Cost Estimation}
+\subsection{Constructing the Objective Function}
+The objective function for our model estimates the runtime performance of different format choices by considering the costs of format uses and format conversions.
 
-Because \FormatDecisions{} uses runtime microbenchmarking to estimate the cost of different layouts, the overhead can meaningfully impact overall performance. 
-To mitigate this effect, we reuse the microbenchmarking results as much as possible.
-To maximize reuse, we model choices based on their access order, which describes the order in which iterations access data in memory.
+The cost of a format use contributes a single linear term: the decision variable times the predicted cost of using that format for that computation. 
+For example, since the View \verb.F. is not used in \verb.knl1., we can expect the \verb.F.'s objective function to contain the terms \verb.0 * knl1_0_1. and \verb.0 * knl1_1_0..
 
-By using the access order instead of the full description of the access, references to different Views can be modeled with the same estimates, even if they have different argument or policy orders.
-We argue that the access order is an accurate predictive metric for the relative performance of a layout choice. 
+Format conversions contribute more complex terms.
+This is because whether or not the cost is applied depends on two variables rather than one. 
+For example, consider the conversion step between \verb.knl1. and \verb.knl2.. 
+Converting from row-major order to row-major order costs nothing, contributing the term \verb.0 * knl1_0_1 * knl2_0_1..
+Converting from row-major to column-major comes with a price, contributing the term \verb.P * knl1_1_0 * knl2_0_1. for price \verb.P..
 
-\subsection{Identifying an Access}
-\begin{figure}[tbp]
-	\begin{lstlisting}[caption={Two implementations of matrix multiplication using different kernel policies.}, autogobble, label={MatMulTraversalOrder}]
-		auto a_layout = make_permuted_layout(a_sizes, {{0,1}});
-		auto b_layout = make_permuted_layout(b_sizes, {{1,0}});
-		auto c_layout = make_permuted_layout(c_sizes, {{0,1}});
+Once the objective function is constructed, we can search for the format choices that minimize it, but first we need to estimate the cost coefficients.
 
-		View2D A(a_data, a_layout);
-		View2D B(b_data, b_layout);
-		View2D C(c_data, c_layout);
+\subsection{Determining Cost Coefficients}
+Accurate estimations are key to selecting formats with good performance, so we utilize runtime microbenchmarking to incorporate empirical, system-specific profiling data into the model.
+However, because this microbenchmarking occurs at runtime, the overhead can meaningfully impact overall performance. 
+To mitigate this effect, we reuse microbenchmarking results by modeling choices based on their access order.
+The access order for a View reference encodes the ordering of the index arguments, the View's layout, and the kernel's execution policy.
+By normalizing the policy and layout orders, we can map accesses to a much smaller set of values to estimate.
+This subsection explains how we calculate access orders and argues that the access order is an accurate predictive metric for the relative performance of a layout choice. 
 
-		auto matmul_lambda = [&](auto i0, auto i1, auto i2) {
-			C(i0,i1) += A(i0,i2) * B(i2,i1);
-		}
-		auto segs = make_tuple(RangeSegment(0,iN), 
-			RangeSegment(0,jN), 
-			RangeSegment(0,kN));
-		using Policy_012 = KernelPolicy<
-			statement::For<0,loop_exec,
-				statement::For<1,loop_exec,
-					statement::For<2,loop_exec,
-						statement::Lambda<0>
-					>
-				>
+\begin{figure*}
+
+	\begin{subfigure}{0.40\textwidth}
+		\begin{lstlisting}
+View2D A(a_data, row_major); // (1,0)
+View2D B(b_data, col_major); // (0,1)
+View2D C(c_data, row_major); // (1,0)
+
+auto matmul_lambda = [&](auto i0, auto i1, auto i2) {
+	C(i0,i1) += A(i0,i2) * B(i2,i1);
+}
+
+using Policy_012 = KernelPolicy< 
+	statement::For<0,loop_exec, // for i
+		statement::For<1,loop_exec, // for j
+			statement::For<2,loop_exec, // for k
+				statement::Lambda<0>
 			>
-		>;
+		>
+	>
+>;
 
-		using Policy_201 = KernelPolicy<
-			statement::For<2,loop_exec,
-				statement::For<0,loop_exec,
-					statement::For<1,loop_exec,
-						statement::Lambda<0>
-					>
-				>
+using Policy_201 = KernelPolicy< 
+	statement::For<2,loop_exec, // for k
+		statement::For<0,loop_exec, // for i
+			statement::For<1,loop_exec, // for j
+				statement::Lambda<0>
 			>
-		>;
+		>
+	>
+>;
 
-		auto knl1 = make_kernel<Policy_012>(segs, matmul_lambda);
-		auto knl2 = make_kernel<Policy_201>(segs, matmul_lambda);
+auto knl1 = make_kernel<Policy_012>(segs, matmul_lambda);
+auto knl2 = make_kernel<Policy_201>(segs, matmul_lambda);
+		\end{lstlisting}
+		\caption{Two kernels implementing matrix multiplication.}
+		\label{accessOrder:code}
+	\end{subfigure}
+	\hspace{0.02\textwidth}
+	\begin{subfigure}{0.45\textwidth}
+		\begin{center}
+		Argument Order $\xrightarrow[\text{Layout Order}]{permute}$ Layout-Normalized Order
 
-		knl1();
-		knl2();
-	\end{lstlisting}
-	\Description{Fully described in the text.}
-\end{figure}
+		Layout-Normalized Order $\xrightarrow[\text{Policy Order}]{indexof}$ Access Order
 
-The access pattern of any View reference is identified by its access order, which is in turn defined by its argument order, the kernel policy order, and the layout order. 
-The argument order describes the order of the loop iterators in the reference with respect to the parameters of the lambda. 
-In Listing~\ref{MatMulTraversalOrder}, the references to \verb.A., \verb.B., and \verb.C. have argument orders $(0,2)$, $(2,1)$, and $(0,1)$, respectively. 
-The kernel policy order describes the order in which the iterators are increased. 
-This is equivalent to the nesting order of a loop.
-In Listing~\ref{MatMulTraversalOrder}, references made by \verb.knl1. have policy order $(0,1,2)$, while those may by \verb.knl2. have policy order $(2,0,1)$.
-The indices of the \verb.For. statements within the policy determine this order.
-The layout order describes the layout of data in memory. 
-In Listing~\ref{MatMulTraversalOrder}, \verb.A. has layout order $(0,1)$, \verb.B. has $(1,0)$, and \verb.C. has $(0,1)$.
-While each access has a layout order defined by the original layout of the data, during our modeling phase, different layout orders are estimated to see which is most effective for the particular kernel. 
+		\vspace{5px}
+		\dots\dots\dots
+		\vspace{5px}
 
-The access order describes the order in which the iterations of a kernel access the data in memory.
-For example, an access order of $(0,2)$ indicates that the stride-one dimension of the data is traversed by the innermost (depth 2) loop and the larger stride dimension is traversed by the outermost (depth 0) loop. 
-Similarly, an order of $(2,1)$ indicates the stride-one dimension is traversed by the middle (depth 1) loop while the larger stride dimension is traversed by the innermost (depth 2) loop.
+		knl1, A: $(0,2)$ $\xrightarrow[(0,1)]{permute}$ $(2,0)$ $\xrightarrow[(0,1,2)]{indexof}$ $(2,0)$.
+		
+		knl1, B: $(2,1)$ $\xrightarrow[(1,0)]{permute}$ $(1,2)$ $\xrightarrow[(0,1,2)]{indexof}$ $(1,2)$.
+		
+		knl1, C: $(0,1)$ $\xrightarrow[(0,1)]{permute}$ $(0,1)$ $\xrightarrow[(0,1,2)]{indexof}$ $(0,1)$.
+		
+		knl2, A: $(0,2)$ $\xrightarrow[(0,1)]{permute}$ $(2,0)$ $\xrightarrow[(2,0,1)]{indexof}$ $(0,1)$.
 
-Calculating the access order of a View reference starts with the argument order.
-Then, we permute the argument order based on the layout order. 
-Finally, we reorder the result based on the policy order.
-Using the reference to \verb.B. in \verb.knl2. as an example, we start with the argument order $(2,1)$.
-The layout order of \verb.B. is $(1,0)$, so our intermediate result is $(1,2)$. 
-The policy order of \verb.knl2. is $(2,0,1)$, so our final result is $(2,0)$. 
-This indicates that in \verb.knl2., the outermost loop is indexing the stride-one dimension while the innermost loop is indexing the larger stride dimension.
+		knl2, B: $(2,1)$ $\xrightarrow[(1,0)]{permute}$ $(1,2)$ $\xrightarrow[(2,0,1)]{indexof}$ $(2,0)$.
 
-Using the access order rather than the full description of the reference, we see that the reference to \verb.B. in \verb.knl1. will have similar performance impact to the reference to \verb.C. in \verb.knl2.
-For \verb.B., $(2,1)$ becomes $(1,2)$ becomes $(1,2)$. 
-For \verb.C., $(0,1)$ becomes $(0,1)$, becomes $(1,2)$.
-This equivalence demonstrates how the monotonically increasing policy and layout orders are identity transformations.
+		knl2, C: $(0,1)$ $\xrightarrow[(0,1)]{permute}$ $(0,1)$ $\xrightarrow[(2,0,1)]{indexof}$ $(1,2)$.
+	\end{center}
+	\caption{The calculation process. Note that $(0,1)$ and $(0,1,2)$ act as identities under $permute$ and $indexof$.}
+	\label{accessOrder:calc}
+	\end{subfigure}
 
-\subsection{Access Order as a Performance Metric}
-\label{sec:AccessMetric}
-Our claim is that the access order of an access is an accurate predictive metric for the relative performance of a layout choice. 
+	\vspace{10px}
+	\begin{subfigure}{0.9\textwidth}
+		\begin{center}
+			\begin{tabular} {|c|c|c|}
+				\hline
+				Kernel & Policy Order \\ \hline 
+				knl1 & (0,1,2) \\
+				knl2 & (2,0,1) \\
+				\hline
+			\end{tabular}
+			\hspace{0.01\textwidth}
+			\begin{tabular} {|c|c|c|}
+				\hline 
+				View & Argument Order & Layout Order \\  \hline 
+				A & (0,2) & (0,1) \\ 
+				B & (2,1) & (1,0) \\
+				C & (0,1) & (0,1) \\
+				\hline
+			\end{tabular}
+			\hspace{0.01\textwidth}
+			\begin{tabular} {|c|c|c|}
+				\hline
+				Information & Source \\ \hline 
+				Argument Order & Symbolic evaluation  \\
+				Layout Order & Symbolic evaluation \\
+				Policy Order & Template parameter \\
+				\hline
+			\end{tabular}
+		\end{center}
+		\caption{Orderings and their sources.}
+		\label{accessOrder:orders}
+	\end{subfigure}
+	\caption{Extracting access orders from computation objects.}
+	\label{accessOrder}
+\end{figure*}
+
+
+Figure~\ref{accessOrder} details the process of calculating access orders. 
+In Figure~\ref{accessOrder:code}, we see the implementation of two slightly different matrix multiplication kernels. 
+While the data and loop body lambda are identical, they differ in their kernel policy, which determine how the kernel traverses the iteration space.
+The kernel policy orders are shown in Figure~\ref{accessOrder:orders}, alongside the order of each View's indexing arguments and layout.
+The policy orders are part of the type of the kernel, while the argument and layout orders of the Views are gathered from the symbolic evaluation of the kernel lambdas.
+Figure~\ref{accessOrder:calc} presents the general approach and examples of calculating the access order.
+Starting with the argument index order, we permute by the layout order then map values to their indices in the policy order.
+
+Our claim is that the access order of an View reference is an accurate predictive metric for the relative performance of a layout choice.
 We support this claim empirically using performance data from three microbenchmarks.
 For each microbenchmark, we record the 5-run average execution time of all combinations of policy, layout, and argument order. 
 These execution times are then grouped by access order.
+
 If our claim is valid, then the execution times for each access order will cluster and the groups of execution times will not overlap.
-Microbenchmark 1 is an access to a 3-dimensional View in a 3-dimensional loop. 
+Microbenchmark 1 is an access to a 3-dimensional View in a 3-dimensional loop, and is representative of the microbenchmark used to estimate costs within \FormatDecisions. 
 Microbenchmark 2 is an access to a 2-dimensional View in a 3-dimensional loop, as in a matrix multiplication.
 Microbenchmark 3 is an access to a 3-dimensional View in a 4-dimensional loop for a set argument order.
 Table~\ref{MicrobenchmarkDetails} summarizes them in more detail, including data sizes.
@@ -548,13 +538,14 @@ See Section~\ref{sec:eval} for machine and compilation information.
 
 \begin{table}
 	\centering
-	\begin{tabular}{p{2.2cm}|p{1.6cm}|p{1.6cm}|p{1.5cm}}
-
+	\begin{tabular}{|p{2.2cm}|p{1.6cm}|p{1.6cm}|p{1.5cm}|}
+		\hline
 		\raggedright Microbenchmark \linebreak Number & \raggedright \# View \linebreak Dimensions & \raggedright \# Loop \linebreak Dimensions & \raggedright Size per \linebreak Dimension \tabularnewline
 		\hline
 		1 & 3 & 3 & 128 \\
 		2 & 2 & 3 & 512 \\
-		3 & 3 & 4 & 64 
+		3 & 3 & 4 & 64 \\
+		\hline
 	\end{tabular}
 	\caption{Microbenchmark details for evaluating access order as a performance metric.}
 	\label{MicrobenchmarkDetails}
@@ -564,14 +555,14 @@ See Section~\ref{sec:eval} for machine and compilation information.
   \centering
   \begin{subfigure}{0.48\textwidth}
 	\includegraphics[width=\textwidth]{benchmark1_boxplot.pdf}
-	\caption{Box plots showing execution times for 3-dimensional loop accessing 3-dimensional view, grouped by access order. Each point represents a different combination of policy, layout, and argument orders. Each access order group is jittered.}
+	\caption{Box plots showing execution times for a 3-dimensional loop accessing a 3-dimensional View, grouped by access order. }
 	\label{AccessBenchmark1}
 	\Description[Access Order Execution Times Boxplot for Microbenchmark 1]{Fully described in the text.}
   \end{subfigure}
   \hfill
 \begin{subfigure}{0.48\textwidth}
 	\includegraphics[width=\textwidth]{benchmark2_boxplot.pdf}
-	\caption{Box plots showing execution times for 3-dimensional loop accessing 2-dimensional view, grouped by access order. Each point represents a different combination of policy, layout, and argument orders. Each access order group is jittered.}
+	\caption{Box plots showing execution times for a 3-dimensional loop accessing 2-dimensional View, grouped by access order. }
 	\label{AccessBenchmark2}
 	\Description[Access Order Execution Time Boxplot for Microbenchmark 2]{Fully described in the text}
 \end{subfigure}
@@ -579,12 +570,12 @@ See Section~\ref{sec:eval} for machine and compilation information.
 \bigskip
 \begin{subfigure}{0.48\textwidth}
 	\includegraphics[width=\textwidth]{benchmark3_boxplot.pdf}
-	\caption{Box plots showing execution times for 4-dimensional loop accessing 3-dimensional view, grouped by access order. Each point represents a different combination of policy and layout for a fixed argument order. Each access order group is jittered.}
+	\caption{Box plots showing execution times for a 4-dimensional loop accessing a 3-dimensional View, grouped by access order.}
 	\label{AccessBenchmark3}
 	\Description[Access Order Execution Time Boxplot for Microbenchmark 3]{Fully described in the text}
 \end{subfigure}
 
-\caption{Execution times for three microbenchmarks using different access orders.}
+\caption{Execution times for three microbenchmarks using different access orders. Each access order group is jittered. \todo{Rerender these figures with the unit added to the Y-axis}}
 \end{figure*}
 
 Figure~\ref{AccessBenchmark1} shows the execution times for the different access orders for microbenchmark 1.
@@ -599,122 +590,7 @@ Figure~\ref{AccessBenchmark3} shows the execution times for the different access
 A similar pattern as the previous microbenchmarks emerges here: grouping based on the position of the innermost iterator. 
 
 
-\section{Optimizing the Decision Model}
-
-The key to gaining performance improvements from \FormatDecisions{} lies in minimizing the overhead from solving the ILP formulation. 
-To that end, we compare two implementations of the decision model. 
-The first implementation uses decision variables for both computation formats and conversions, with the conversion cost estimates as coefficients of the conversion variables.
-In the second implementation, the conversion decision variables are removed and the conversion costs become coefficients of computation variable products. 
-For example, consider the potential conversion from layout $(0,1)$ to $(1,0)$ between the first and second computations. 
-Let us say the estimated cost of performing this conversion is 100. 
-Then in the first model, this cost is represented in the objective function by the term \verb.100 * conv2_in_0_1_out_1_0..
-In the second model, this cost is represented by the term \verb.100 * comp1_0_1 * comp2_1_0..
-
-Because the second model does not have conversion decision variables, the size of the decision space is drastically smaller. 
-For \FormatDecisions{} on $K$ kernels with $D$ dimensional data, both models use $(K+1)*D!$ variables to represent the layout choices for the computations. 
-In addition to the computation variables, the first model also includes $(K+1)*D!*D!$ conversion variables--one for each combination of input and output layouts at each conversion point. 
-
-While the size of the decision space of the second model is reduced by removing the conversion variables, it comes at the cost of a more complex objective function. 
-Recall the representation of conversion costs in the second model's objective function: \verb.100 * comp1_0_1 * comp2_1_0..
-Rather than representing our objective function as an affine map on the decision space, we must now use \verb.isl.'s quasipolynomial functions.
-This means that locating the optimal point becomes more costly. 
-
-In this section, we vary four parameters of the evaluation code and compare the effects on the two implementations.
-The parameters we vary are:
-\begin{itemize}
-\item Computation Data Size: The total size of the Views in the computation.
-\item Constraints Per View: The number of format decisions the user specifies for each View.
-\item View Count: The number of Views for which \FormatDecisions{} chooses formats.
-\item Dimensionality: The number of dimensions in the data. For 2D, we use the 3mm benchmark. For 3D, we use a synthetic benchmark with similar format changes. The implementations of both can be found in the Appendix \todo{write the appendix}.
-\end{itemize}
-For all experiments, the number of computations in the problem is constant at 3.
-
-We report the execution time of different components of the system. 
-The first component is the "Computation" itself. 
-This is the time spent executing the original kernels and excludes any time spent changing the layout of the data. 
-Time spent changing data layouts is reported as "Conversion." 
-The third reported component is "Cost Estimation,", which refers to the time spent estimating the cost coefficients for the objective function. 
-The fourth reported component is "ISL Space". 
-This refers to the time spent in the ISL library initializing the constrained decision space. 
-The fifth component is "ISL Func," referring to the time spent initializing the objective function object. 
-Last is "ISL Solve," which reports the time spent identifying the point in the decision space with the lowest cost. 
-
-\subsection{Experiment Descriptions}
-The first experiment examines the effect of the computation problem size on the models.
-Here, we hold the Dimensonality constant at 2 and the View Count at 3. We also use the same user constraints for all runs, using the optimal transformations based on an analysis of the data accesses.
-The problem sizes used are $2^i$ for $i \in [15..20]$.
-We hypothesize that changing the problem size will not impact the time spent in the model as the problem size does not impact the complexity of the models. Consequently, as the problem size increases, we expect higher speedups because the proportional contribution of the model overhead decreases. 
-
-The second experiment examines the effect of changing the number of format decisions registered by the user. 
-Here we hold the Dimensionality at 2, the Problem Size at $10^6$, and the View Count at 1. 
-We vary the number of user constraints from 0 to 4. 
-We hypothesize that each additional registered decision will reduce the ISL Solve time by approximately 2, as each registered decision cuts the size of the decision space in half.
-
-The third experiment examines the effect of changing the number of Views for which \FormatDecisions{} decides the format. 
-We hold the Dimensionality at 2, the Problem Size at $10^6$, and the constraints to the same set as the first experiment.
-We vary the number of Views from 1 to 3.
-We hypothesize that there will be a linear increase in the time spent preparing the decision space and the objective function, as each View is modeled seperately. 
-We further hypothesize that, because the third View (F) has two decisions registered, the change in solve time from adding the third View will be about half of that from adding the second View. 
-
-Finally, the fourth experiment varies the Dimensionality between 2 and 3. We hold the Problem Size at $10^6$, the View Count at 3, and user constraints at the analytical choice from the previous experiments. 
-We hypothesize a significant increase in execution time between 2 and 3 dimensional data, as the size of the decision space increases by 9 for the first model and by 3 for the second. This will impact both the setup and solve.
-
-\subsection{Experiment Results}
-
-Figures~\ref{instrumentation1_1} and \ref{instrumentation1_2} show the results of the first experiment. 
-Figure~\ref{instrumentation1_2} confirms the hypothesis that changes to the computation's problem size do not affect the time spent solving the models.
-It also shows that the second model outperforms the first model for all three \verb.isl. components.
-Figure~\ref{instrumentation1_1} supports the hypothesis that as problem size increases, the speedup increases. 
-For the $2^{20}$ problem size, there is a anomolous result in that \FormatDecisions{} outperforms the hand-implemented transformations. 
-This will require further examination to understand the cause, but it may be due to the code that applies the transformation, or the model identifying a more optimal ordering of the conversions.
-
-\begin{figure}
-	\includegraphics[width=\columnwidth]{instrumentation_experiment1_part1.pdf}
-	\caption{Execution time of models and computation for different problem sizes. Experiment 1.}
-	\label{instrumentation1_1}
-\end{figure}
-\begin{figure}
-	\includegraphics[width=\columnwidth]{instrumentation_experiment1_part2.pdf}
-	\caption{Execution time of models only for different problem sizes. Experiment 1.}
-	\label{instrumentation1_2}
-\end{figure}
-
-Figure~\ref{instrumentation2} shows the results of the second experiment.
-For both models, the number of constraints had no impact on the time spent initializing the decision space and the objective function as hypothesized. 
-For the second model, the solve time decreases as the number of user constraints increases.
-However, even with all four constraints set, there is still a small amount of time spent identifying the optimal point. 
-This may be due to some constant amount of time required for preparing the decision space for iteration. 
-For the first model, while solving takes less time for four constraints than for zero, there is not a consistent reduction in solve time for the intermediate points.
-
-\begin{figure}
-	\includegraphics[width=\columnwidth]{instrumentation_experiment2_part1.pdf}
-	\caption{Execution time of models only for different numbers of user constraints. Experiment 2. }
-	\label{instrumentation2}
-\end{figure}
-
-Figure~\ref{instrumentation3} shows the results of the third experiment. 
-The results support the hypothesis of an approximately linear relationship for the space and function construction and a smaller solve time increase when adding the third View compared to adding the second.
-
-\begin{figure}
-	\includegraphics[width=\columnwidth]{instrumentation_experiment3_part2.pdf}
-	\caption{Execution time of models only for different numbers of Views in the \FormatDecisions{} object. Experiment 3.}
-	\label{instrumentation3}
-\end{figure}
-
-
-
-Finally, Figure~\ref{instrumentation4_1} shows the results of the fourth experiment. While the second implementation does reduce the overhead of setting up and solving the ILP problem, the additional overhead from adding a third data dimension is still significant.
-
-\begin{figure}
-	\includegraphics[width=\columnwidth]{instrumentation_experiment4_part1.pdf}
-	\caption{Execution time for different data dimensionality. Experiment 4.}
-	\label{instrumentation4_1}
-\end{figure}
-
-
-
 %%%%%%%%%%%%%%%%%%%%%%
-
 \section{Evaluation}
 \label{sec:eval}
 
@@ -910,7 +786,7 @@ Overall, data format is a key consideration when optimizing applications.
 Especially in performance portability libraries like RAJA, developers need tools to implement those optimizations without sacrificing productivity.
 \FormatDecisions{} gives developers those tools.
 By combining declarative user specification of data format with runtime performance modeling, we can offer the performance improvements of data layout changes with significantly less developer effort.
-\balance
+% \balance
 
 \bibliographystyle{abbrv}
 \bibliography{DataRAJALC}
