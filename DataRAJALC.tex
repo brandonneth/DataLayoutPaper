@@ -241,6 +241,7 @@ Section 7 reviews related work and section 8 concludes.
 	\Description[RAJA Implementation of 3MM]{Fully described in the text.}
 \end{figure}
 
+\label{sec:kernelObjects}
 
 We use a variety of components of RAJA to enable automatic data format transformations, as well as features of the loop chain extension RAJALC~\cite{neth2021inter}. 
 This section reviews how a computation is described in RAJA, working with the implementation of the 3MM kernel found in Listing~\ref{3MMStart}.
@@ -369,22 +370,22 @@ Figure~\ref{graphModel} shows this formulation for the View \verb.F. in the 3MM 
 \begin{figure}
 	
 	\begin{subfigure}[t]{0.2\textwidth}
-		\includegraphics[page=1,width=\textwidth]{Model\ Progression.pdf}
+		\includegraphics[page=1,width=\textwidth]{ModelProgression.pdf}
 		\caption{Initial state of the optimization problem.}
 	\end{subfigure}
 	\hspace{0.05\textwidth}
 	\begin{subfigure}[t]{0.2\textwidth}
-		\includegraphics[page=2,width=\textwidth]{Model\ Progression.pdf}
+		\includegraphics[page=2,width=\textwidth]{ModelProgression.pdf}
 		\caption{After registering that F should be row-major during the second computation.}
 	\end{subfigure}
 
 	\begin{subfigure}[t]{0.2\textwidth}
-		\includegraphics[page=3,width=\textwidth]{Model\ Progression.pdf}
+		\includegraphics[page=3,width=\textwidth]{ModelProgression.pdf}
 		\caption{After registering that F should be column-major during the third computation.}
 	\end{subfigure}
 	\hspace{0.05\textwidth}
 	\begin{subfigure}[t]{0.2\textwidth}
-		\includegraphics[page=4,width=\textwidth]{Model\ Progression.pdf}
+		\includegraphics[page=4,width=\textwidth]{ModelProgression.pdf}
 		\caption{After the input format has been set. This is the final state that the optimization problem solves.}
 	\end{subfigure}
 
@@ -605,23 +606,12 @@ Then, for one of the benchmarks, we perform an exhaustive evaluation of all layo
 All performance results in this paper were collected on a single node with a 44-core IBM Power9 CPU and 256GB of CPU memory.
 All compilation used Clang version 13.0.0 with \verb.-O3. optimization.
 
+\subsection{RAJAPerf + miniQMC}
 
-
-
-\subsection{Experiment 1: RAJAPerf}
-\label{sec:Experiment1}
-Our first experiment examined the performance and programmer productivity impacts of \FormatDecisions{} using benchmarks from the RAJAPerf suite~\cite{hornung2017raja}.
-The RAJAPerf suite is a collections of computations from large scientific computations. 
-We target 4 benchmarks from the suite, all from the Polybench~\cite{pouchet2012polybench} and create one new computation based on miniQMC\todo{cite}.
-
-
+Our first experiment examined the performance and programmer productivity impacts of \FormatDecisions{} using four benchmarks from the RAJAPerf Suite~\cite{hornung2017raja} and one based on the determinant update from the miniQMC miniapp~\cite{richards2018fy18}.
 While other benchmarks in the suite have the potential for data layout optimization, they present imperfect nesting and triangular iteration spaces, which are not currently supported by our implementation. 
 Future work will add support for imperfect nesting through updating our cost estimator and symbolic evaluator to handle kernel calls with multiple lambdas. 
 Support for triangular iteration spaces is also part of our future research directions, but will require additional modification to the base RAJA library.
-
-For each benchmark, we implemented 5 different variants and compared their relative speedup and the number of code changes necessary to go from the original implementation to the variant implementation.
-
-
 
 \textsc{2mm} solves the matrix expression $A*B*C$ using two matrix multiplications. 
 First, it computes $A*B$ and stores the results in a temporary array.
@@ -629,38 +619,43 @@ Then this temporary result is multiplied by $C$.
 \textsc{3mm} solves a similar matrix expression $A*B*C*D$ using three matrix multiplications.
 It computes $A*B$, then $C*D$, then multiplies the results.
 \textsc{gemver} computes a vector multiplication and adds the result to a matrix. 
-Finally, \textsc{mvt} computes a \textbf{m}atrix \textbf{v}ector product and \textbf{t}ranspose.
+\textsc{mvt} computes a \textbf{m}atrix \textbf{v}ector product and \textbf{t}ranspose.
+Finally, the benchmark extracted from miniQMC uses three matrix multiplications to update an inverted matrix. 
+\todo{write appendix implementation}
 
-
-
-Two of the four benchmarks, \textsc{2mm} and \textsc{3mm}, have higher loop dimensionality than data dimensionality. 
-The remaining two, \textsc{gemver} and \textsc{mvt}, have the same loop and data dimensionality. 
+Two of the benchmarks, \textsc{gemver} and \textsc{mvt}, have the same loop and data dimensionality. 
 This indicates that for \textsc{gemver} and \textsc{mvt}, the most profitable data transformation should be no transformation, as the traversal through the data for the conversion is the same traversal as that of the computation.
 For computations such as these, loop schedule transformations may be able to improve locality without the prohibitive cost of format conversions~\cite{kandemir1998improving}.
-However, because of their higher loop dimensionality, \textsc{2mm} and \textsc{3mm} should benefit from format conversions.
+However, because of their higher loop dimensionality, the other benchmarks should benefit from format conversions.
 
-\todo{Describe miniQMC benchmark}
-
-We implemented five variants of each benchmark.
-The first variant, \verb.RAJA_OpenMP., is the original RAJA implementation.
-\verb.RAJALC. modifies \verb.RAJA_OpenMP. to use RAJALC kernel objects.
-\verb.Hand_Layout., \verb.Format_Decision., and \verb.Model_Choice. all augment the \verb.RAJALC. variant to include format changes.
-Table~\ref{VariantDescription} describes the variants in more detail.
 
 \begin{table}
 	\centering
-	\begin{tabular}{ p{2.4cm} | p{1.1cm} | p{1.1cm} | p{1cm} | p{1cm}}
+	\begin{tabular}{| p{2.4cm} | p{1.1cm} | p{1.1cm} | p{1cm} | p{1cm}|}
+		\hline
 		 \raggedright Variant \linebreak Name & \raggedright Kernel Objects & \raggedright Layout Changes & \raggedright Chosen By &  Written Using \tabularnewline
 		\hline
-		\verb.RAJA_OpenMP. & No & No & - & - \\
 		\verb.RAJALC. & Yes & No & - & - \\
 		\verb.Hand_Layout. & Yes & Yes & User & No API \\
 		\verb.Format_Decision. & Yes & Yes & User & API \\
-		\verb.Model_Choice. & Yes & Yes & Model & API
+		\verb.Model_Choice. & Yes & Yes & Model & API \\
+		\hline
 	\end{tabular}
 	\caption{Polybench variant descriptions.}
 	\label{VariantDescription}
 \end{table}
+For each benchmark, we implement 4 variants and compare execution time and code length, shown in Table~\ref{VariantDescription}.
+\verb.RAJALC. implements the computations using the kernel objects discussed is Section~\ref{sec:kernelObjects}. 
+\verb.Hand_Layout. implements identified transformations without using \FormatDecisions. 
+Because this variant does not have any analysis overhead, we expect this variant to be the fastest.
+The \verb.Format_Decision. variant uses \FormatDecisions to register the identified layout changes but does not use the model to look for other beneficial transformations.
+Last, \verb.Model_Choice. allows the decision model to make all layout choices without providing any user-identified transformations.
+
+
+
+\subsection{Experiment 1: RAJAPerf}
+\label{sec:Experiment1}
+
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{PolybenchPerfPlot.pdf}
