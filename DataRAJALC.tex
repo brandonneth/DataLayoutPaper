@@ -196,6 +196,14 @@ Section 7 reviews related work and section 8 concludes.
 %%%%%%%%%%%%%%%
 \section{RAJA and RAJALC}
 
+\todo{Everywhere there is code, Michelle is crying for some comments.  See commented out
+details for this one in latex}
+%FIXME: Brandon, I would really like to see some comments in the below.  Specifically,
+% // Array declarations with layout specifications
+% Then put the POLICY decl first and then each loop body with each knl and a comment with the
+% math it is doing.
+% I didn't change this because I realize you will have to change line number references in the text
+% so want you to decide.
 \begin{figure}
 	\begin{lstlisting}[
 		caption={The 3MM kernel (E = A * B, F = C * D, G = E * F) implemented using RAJA.},
@@ -243,8 +251,8 @@ Section 7 reviews related work and section 8 concludes.
 
 \label{sec:kernelObjects}
 
-We use a variety of components of RAJA to enable automatic data format transformations, as well as features of the loop chain extension RAJALC~\cite{neth2021inter}. 
-This section reviews how a computation is described in RAJA, working with the implementation of the 3MM kernel found in Listing~\ref{3MMStart}.
+We use a variety of components of the performance portability C++ library RAJA to enable automatic data format transformations, as well as features of the loop chain extension RAJALC~\cite{neth2021inter}. 
+This section reviews how a computation is described in RAJA, working with the implementation of the 3MM kernel (i.e., three matrix multiplications) found in Listing~\ref{3MMStart}.
 
 The foundational elements of RAJA are the execution constructs, \verb.forall. and \verb.kernel.. 
 These templated functions execute a loop immediately, whereas the RAJALC \verb.make_forall. and \verb.make_kernel. extensions create wrapper objects that are executed through the call operator. 
@@ -268,13 +276,13 @@ By overloading this call operator for symbolic iterator types, RAJALC enables th
 RAJALC uses the access information gathered from symbolic evaluation to ensure the correctness of its scheduling optimizations.
 This work uses RAJALC's runtime symbolic evaluation to inform our performance model.
 Second, Views fully parameterize their underlying data formats with the Layout object.
-Without Views, to switch their data from row-major to column-major, a programmer must change the definition of the array \textit{and} must change every access \verb.A[i][j]. to \verb.A[j][i].
+Without Views, to switch their data from row-major to column-major, a programmer must change the definition of the array \textit{and} must change every access \verb.A[i][j]. to \verb.A[j][i]..
 This mechanism is prohibitively expensive, especially when the programmer does not yet know the performance impact of the decision.
 With Views however, the programmer only needs to change the View's definition: the layout permutation changes from $(0,1)$ to $(1,0)$. 
 In Listing~\ref{3MMStart}, \verb.A. is defined with the row-major $(0,1)$ layout, but \verb.B. is defined with the column-major $(1,0)$ layout. 
 Note that the change in \verb.B.'s layout does not change how it is used in the computation. 
 
-Through the computation, the data is accessed in different orders.
+Throughout the computation, the data is accessed in different orders.
 For example, consider the Views \verb.A., \verb.B., and \verb.D..
 The order in which \verb.A. is accessed is different from \verb.D. because the argument order in their accesses are different.
 In contrast, while \verb.B. and \verb.D. have the same argument order, their access orders are still different because they have different layouts.
@@ -358,7 +366,9 @@ To implement such a layout change by hand requires the programmer to allocate a 
 copy the data from the View to the temporary array in the right order, 
 copy the data \textit{back} to the memory in the View, 
 and then finally update the View's layout object.
-This work removes that barrier by expanding the declarative data optimization system begun by RAJALC.
+This work removes that barrier by providing a declarative data optimization system and evaluating
+it within the context of RAJALC.
+%expanding the declarative data optimization system begun by RAJALC.
 
 \subsection{Declarative Layout Transformations}
 Our approach, shown in action in Listing~\ref{FormatDecisions3MM}, introduces a single user-facing class, appropriately named \verb.FormatDecisions..
@@ -366,7 +376,8 @@ Rather than inserting code blocks to change a View's data layout between kernel 
 Once the user has finished registering their choices, \FormatDecisions{} looks for additional beneficial format conversions and generates a final computation object that makes format conversions and executes the computations, shown in lines 18 and 19.
 
 \subsection{The \FormatDecisions{} API}
-These objects are initialized using the \verb.format_decisions. function with the data to transform and the computations in which the data will be used.
+The \FormatDecisions objects are initialized using the \\
+ \verb.format_decisions. function with the data to potentially transform and the computations in which the data will be used.
 \FormatDecisions{} supports four operations: registering format decisions, turning the supplementary modeling on and off, running the supplementary model, and generating the final computation.
 
 The user registers format decisions with two methods.
