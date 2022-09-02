@@ -113,8 +113,8 @@ Because these libraries do not support changing the data layout after initializa
 We remedy this shortcoming by prototyping a lightweight, declarative API for changing data layouts between computations in RAJA.
 We then extend the library with existing compiler technology to guide the use of layout changes based on our runtime performance model of their cost and benefit.
 Thus, the model and runtime combine to \enquote{fill in} layout choices that the user did not specify.
-Our approach allows the user to specify as much of the layout information as they please and still obtain the performance benefits of changing data layouts.  
-Further, because \FormatDecisions{} is built directly into the library, no additional build steps are required.
+Our approach provides the \FormatDecisions{} API that allows the user to specify as much of the layout information as they please and still obtain the performance benefits of changing data layouts.  
+Further, because \FormatDecisions{} is built directly into the RAJA library, no additional build steps are required.
 We evaluate \FormatDecisions{} on four benchmarks from the RAJAPerf Suite, where it achieves similar performance improvements to hand-implemented optimizations.
 \end{abstract}
 \maketitle
@@ -130,10 +130,10 @@ Although mechanisms such as compiler optimizations~\cite{wolf1991data,bixby1994a
 and data layout policies like those in Kokkos~\cite{edwards2014kokkos} and RAJA~\cite{hornung2014RAJA} can align data layout with computation schedules, compiler optimizations lack user controls and layout policies become difficult to automate and laborious to manage by hand as the number of loops and arrays grow.
 
 Figure~\ref{IntroExample} shows the importance of a good data layout. 
-The BadLayout column shows the execution time for a matrix multiplication where the three arrays are laid out opposite of their access order. 
-The GoodLayout column shows the execution time for the same matrix multiplication when the arrays are laid out to match their access order.
-The LayoutChange column shows the execution time of code that changes the layout from the bad layout to the good one.
-Finally, the SwitchAndRun column shows the combined execution time of changing the layout from bad to good and then running.
+The ``BadLayout" column shows the execution time for a matrix multiplication where the three arrays are laid out opposite of their access order. 
+The ``GoodLayout" column shows the execution time for the same matrix multiplication when the arrays are laid out to match their access order.
+The ``LayoutChange" column shows the execution time of code that changes the layout from the bad layout to the good one.
+Finally, the ``SwitchAndRun" column shows the combined execution time of changing the layout from bad to good and then running.
 As the graph shows, performance improves  significantly (72\%) simply by changing the data layout, and the cost of performing the layout change is small (<1\% of execution time). 
 
 \begin{figure}
@@ -179,7 +179,7 @@ Although useful advantages, these lead to sub-problems about how the library imp
 
 This paper includes the following contributions:
 \begin{itemize}
-\item An API in RAJA for specifying data layouts and data layout transformations;
+\item The \FormatDecisions{} API implemented in RAJA for specifying data layouts and data layout transformations;
 \item A performance model to select data layouts based on runtime microbenchmarking and a data layout transformation strategy for a loop chain;
 \item An optimization that increases the reuse of microbenchmarking information; and
 \item Performance results and source lines of code (SLOC) for five variants of four benchmark kernels comparing \FormatDecisions{} to hand-implemented optimization.
