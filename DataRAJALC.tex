@@ -690,7 +690,8 @@ A similar pattern as the previous microbenchmarks emerges here: grouping based o
 \section{Experiment 1: RAJAPerf and miniQMC}
 \label{sec:eval}
 
-Our first evaluation experiment examines application performance and programmer productivity using four benchmarks from the polybench~\cite{pouchet2012polybench} section of the RAJAPerf benchmark suite~\cite{hornung2017raja} and one based on the determinant update from the miniQMC miniapp~\cite{richards2018fy18}.
+Our first evaluation experiment examines application performance and programmer productivity using three benchmarks.
+Two come from the polybench~\cite{pouchet2012polybench} section of the RAJAPerf benchmark suite~\cite{hornung2017raja} and one based on the determinant update from the miniQMC miniapp~\cite{richards2018fy18}.
 While other benchmarks in the RAJAPerf suite have the potential for data layout optimization, they present imperfect nesting and triangular iteration spaces, which are not currently supported by our implementation. 
 Future work will add support for imperfect nesting through updating our cost estimator and symbolic evaluator to handle kernel calls with multiple lambdas. 
 Support for triangular iteration spaces is also part of our future research directions, but will require additional modification to the base RAJA library.
@@ -702,8 +703,6 @@ First, it computes $A*B$ and stores the results in a temporary array.
 Then this temporary result is multiplied by $C$.
 \textsc{3mm} solves a similar matrix expression $A*B*C*D$ using three matrix multiplications.
 It computes $A*B$, then $C*D$, then multiplies the results.
-\textsc{gemver} computes a vector multiplication and adds the result to a matrix. 
-\textsc{mvt} computes a \textbf{m}atrix \textbf{v}ector product and \textbf{t}ranspose.
 Finally, the benchmark extracted from miniQMC uses three matrix multiplications to update an inverted matrix. 
 \todo{write appendix implementation}
 
@@ -729,30 +728,26 @@ Because this variant does not have any analysis overhead, we expect this variant
 The \verb.Format_Decision. variant uses \FormatDecisions to register the identified layout changes but does not use the model to look for other beneficial transformations.
 Last, \verb.Model_Choice. allows the decision model to make all layout choices without providing any user-identified transformations.
 
-Two of the benchmarks, \textsc{gemver} and \textsc{mvt}, have the same loop and data dimensionality. 
-This indicates that for \textsc{gemver} and \textsc{mvt}, the most profitable data transformation should be no transformation, as the traversal through the data for the conversion is the same traversal as that of the computation.
-For computations such as these, loop schedule transformations may be able to improve locality without the prohibitive cost of format conversions~\cite{kandemir1998improving}.
-However, because of their higher loop dimensionality, the other benchmarks should benefit from format conversions.
-
 \subsection{Performance Evaluation}
 All performance results in this paper were collected on a single node with a 44-core IBM Power9 CPU and 256GB of CPU memory.
-All compilation used Clang version 13.0.0 with \verb.-O3. optimization.
+All compilation used Clang version 14.0.5 with \verb.-O3. optimization.
 \label{sec:systemDetails}
-
+Figure~\ref{fig:speedups} reports the average speedup of the variants relative to the \verb.RAJALC. variant across 5 runs. 
 
 \begin{figure}
-	\includegraphics[width=\columnwidth]{PolybenchPerfPlot.pdf}
-	\caption{Normalized execution time of the variants relative to the RAJA\_OpenMP variant (Lower is better). Referent execution times are 3.2,4.7,0.039, and 0.12 seconds.}
-	\label{PolybenchPerformance}
-	\Description[Polybench Speedups]{Bar chart for the speedup of the different Polybench kernels. Each kernel has a cluster of five bars, one for each variant. }
+	\includegraphics[width=\columnwidth]{speedups.pdf}
+	\caption{Relative speedups of the different variants for different problem size factors. Higher is better.}
+	\label{fig:speedups}
+	\Description[Polybench Speedups]{Bar chart for the speedup of the different Polybench kernels. Each kernel has a cluster of four bars, one for each variant. }
 \end{figure}
 
+\todo{discussion of results}
 
-Figure~\ref{PolybenchPerformance} reports the average speedup of the variants relative to the \verb.RAJA_OpenMP. variant. 
 
 
 
 \subsection{Productivity Evaluation}
+\todo{I still need to run this again bc the code has changed and I'm not lookig at the RAJA\_OpenMP variant anymore.}
 
 To evaluate the productivity of \textsc{FormatDecisions}, we report the source lines of code added or changed for each of the variants.
 This value is calculated by counting the number of line differences using python's \verb.Differ.. 
@@ -761,8 +756,6 @@ Figure~\ref{PolybenchSLOC} shows the results.
 For the variants that make layout changes, we see a large reduction in the amount of changes required using \FormatDecisions{} compared to the by-hand implementation. 
 While our tool reduces the code required by more than half, it is important to note that this is with respect to an in-line format conversion.
 It is possible for a user to themselves write a function that performs the layout change.
-For the variants without layout changes, we see that using \FormatDecisions{} can require more code changes than a by-hand implementation. 
-This is because the \verb.Hand_Layout. variant is identical to the \verb.RAJALC. implementation, while the \verb.Format_Decision. and \verb.Model_Choice. variants instantiate the \verb.FormatDecisions. object.
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{PolybenchSLOC.pdf}
