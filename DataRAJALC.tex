@@ -138,7 +138,7 @@ As the graph shows, performance improves  significantly (72\%) simply by changin
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{IntroExampleGraph.pdf}
-	\caption{Execution time for matrix multiplication using optimal and non-optimal data layouts and execution time for converting from non-optimal to optimal. Section~\ref{sec:eval} for machine and compilation information.}
+	\caption{Execution time for matrix multiplication using optimal and non-optimal data layouts and execution time for converting from non-optimal to optimal. Section~\ref{sec:systemDetails} for machine and compilation information.}
 	\label{IntroExample}
 	\Description[Matrix Multiplication Execution Time for Different Layouts]{A bar plot showing a "Bad Layout" column with execution time greater than the "Good Layout" and "Layout Conversion" columns combined.}
 \end{figure}
@@ -188,26 +188,19 @@ This paper includes the following contributions:
 The rest of the paper proceeds as follows. 
 Section 2 reviews the RAJA library and prior extensions we use in the current work.
 Section 3 introduces the \FormatDecisions{} interface.
-Sections 4 and 5 detail how we construct our performance model and estimate the costs of different layout conversion choices.
-Section 6 evaluates the impact of \FormatDecisions{}  on performance and productivity.
+Sections 4 detail how we construct our performance model and estimate the costs of different layout conversion choices.
+Sections 5 and 6 evaluate the impact of \FormatDecisions{}  on performance and productivity.
 Section 7 reviews related work and section 8 concludes.
 
 
 %%%%%%%%%%%%%%%
 \section{RAJA and RAJALC}
 
-\todo{Everywhere there is code, Michelle is crying for some comments.  See commented out
-details for this one in latex}
-%FIXME: Brandon, I would really like to see some comments in the below.  Specifically,
-% // Array declarations with layout specifications
-% Then put the POLICY decl first and then each loop body with each knl and a comment with the
-% math it is doing.
-% I didn't change this because I realize you will have to change line number references in the text
-% so want you to decide.
 \begin{figure}
 	\begin{lstlisting}[
-		caption={The 3MM kernel (E = A * B, F = C * D, G = E * F) implemented using RAJA.},
+		caption={The \textsc{3mm} kernel (E = A * B, F = C * D, G = E * F) implemented using RAJA.},
 		label={3MMStart}]
+	// Array declarations with layout specifications
 	auto row_major = make_permuted_layout(sizes, {{0,1}});
 	auto column_major = make_permuted_layout(sizes, {{1,0}});
 
@@ -215,16 +208,7 @@ details for this one in latex}
 	View2D B(B_data, column_major);
 	... initializations proceed similarly for C-G with row_major
 
-	auto loop_body1 = [&](auto i0, auto i1, auto i2) {
-		E(i0, i1) += A(i0,i2) * B(i2,i1);
-	};
-	auto loop_body2 = [&](auto i0, auto i1, auto i2) {
-		F(i0, i1) += C(i0,i2) * D(i2,i1);
-	};
-	auto loop_body3 = [&](auto i0, auto i1, auto i2) {
-		G(i0, i1) += E(i0,i2) * F(i2,i1);
-	};
-	
+	// loop schedule
 	using POLICY = KernelPolicy<
 		statement::For<0,omp_parallel_for_exec,
 			statement::For<1,loop_exec,
@@ -235,12 +219,25 @@ details for this one in latex}
 		>
 	>;
 
-	auto one_seg = RangeSegment(0,N);
-	auto segs = make_tuple(one_seg, one_seg, one_seg);
+	// E = A * B;
+	auto loop_body1 = [&](auto i0, auto i1, auto i2) {
+		E(i0, i1) += A(i0,i2) * B(i2,i1);
+	};
+	// F = C * D;
+	auto loop_body2 = [&](auto i0, auto i1, auto i2) {
+		F(i0, i1) += C(i0,i2) * D(i2,i1);
+	};
+	// G = E * F
+	auto loop_body3 = [&](auto i0, auto i1, auto i2) {
+		G(i0, i1) += E(i0,i2) * F(i2,i1);
+	};
+	
+	auto one_dim = RangeSegment(0,N);
+	auto domain = make_tuple(one_dim, one_dim, one_dim);
 
-	auto knl1 = make_kernel<POLICY>(segs, loop_body1);
-	auto knl2 = make_kernel<POLICY>(segs, loop_body2);
-	auto knl3 = make_kernel<POLICY>(segs, loop_body3);
+	auto knl1 = make_kernel<POLICY>(domain, loop_body1);
+	auto knl2 = make_kernel<POLICY>(domain, loop_body2);
+	auto knl3 = make_kernel<POLICY>(domain, loop_body3);
 
 	knl1();
 	knl2();
@@ -252,22 +249,22 @@ details for this one in latex}
 \label{sec:kernelObjects}
 
 We use a variety of components of the performance portability C++ library RAJA to enable automatic data format transformations, as well as features of the loop chain extension RAJALC~\cite{neth2021inter}. 
-This section reviews how a computation is described in RAJA, working with the implementation of the 3MM kernel (i.e., three matrix multiplications) found in Listing~\ref{3MMStart}.
+This section reviews how a computation is described in RAJA, working with the implementation of the \textsc{3mm} kernel (i.e., three matrix multiplications) found in Listing~\ref{3MMStart}.
 
 The foundational elements of RAJA are the execution constructs, \verb.forall. and \verb.kernel.. 
 These templated functions execute a loop immediately, whereas the RAJALC \verb.make_forall. and \verb.make_kernel. extensions create wrapper objects that are executed through the call operator. 
-Calls to \verb.make_kernel. can be seen in lines 30 through 32 in Listing~\ref{3MMStart}. 
+Calls to \verb.make_kernel. can be seen in lines 40 through 42 in Listing~\ref{3MMStart}. 
 While the RAJALC functions create computation objects rather than immediately executing the computation, their interfaces are the same as their base RAJA counterparts.
 
 The execution constructs separate the specification of the computation from the specification of its schedule.
-The template parameter describes the schedule of the computation as an execution policy, defined on lines 17 through 25.
+The template parameter describes the schedule of the computation as an execution policy, defined on lines 10 through 18.
 Each level of the loop has its own schedule, where \verb.omp_parallel_for_exec. indicates an OpenMP parallel loop and \verb.loop_exec. indicates the compiler should make the decision.
 Other policies exist for vectorization and GPU-offloading.
 The runtime parameters describe the computation itself. 
-The first parameter is the iteration space for the loop, in this case 3 dimensional, defined on lines 27 and 28. 
+The first parameter is the iteration space for the loop, in this case 3 dimensional, defined on lines 33 and 34. 
 The second parameter is the loop body to execute for each iteration, passed as a lambda.
-The three loop bodies are defined on lines 7 through 15.
-After the computation objects are created on lines 30 through 32, they are executed through the call operator on lines 34 through 36.
+The three loop bodies are defined on lines 21 through 31.
+After the computation objects are created on lines 36 through 38, they are executed through the call operator on lines 40 through 42.
 
 RAJA also provides array wrappers called Views.
 The View object has a number of capabilities that make it a valuable tool within RAJA codes.
@@ -294,7 +291,7 @@ Because different formats are optimal for different kernels, this creates an opp
 \section{Transforming Data Layouts}
 
 \begin{figure}
-	\begin{lstlisting}[caption={Changing data layouts for one View in the 3MM benchmark manually.},label={ByHand3MM}]
+	\begin{lstlisting}[caption={Changing data layouts for one View in the \textsc{3mm} benchmark manually.},label={ByHand3MM}]
 auto knl1 = make_kernel<KPOL>(segs1, [=](auto i0, auto i1, auto i2) {
 	E(i0, i1) += A(i0, i2) * B(i2, i1);
 });
@@ -307,6 +304,7 @@ auto knl3 = make_kernel<KPOL>(segs3, [=](auto i0, auto i1, auto i2) {
 
 knl1();
 
+// Reorder F's data for row-major order
 double * tmp1 = new double[n*n];
 for(int i = 0; i < n; i++) {
 	for(j = 0; j < n; j++){
@@ -319,6 +317,7 @@ delete[] tmp1;
 
 knl2();
 
+// Reorder F's data for column-major order
 double * tmp2 = new double[n*n];
 for(int i = 0; i < n; i++) {
 	for(j = 0; j < n; j++){
@@ -331,10 +330,11 @@ delete[] tmp2;
 
 knl3();
 	\end{lstlisting}
+	\Description[Manual implementation of layout transformation]{Fully described in the text.}
 \end{figure}
 
 \begin{figure}
-\begin{lstlisting}[caption={Changing data layouts for three Views in the 3MM benchmark using \FormatDecisions.},
+\begin{lstlisting}[caption={Changing data layouts for three Views in the \textsc{3mm} benchmark using \FormatDecisions.},
 	label={FormatDecisions3MM}]
 auto knl1 = make_kernel<KPOL>(segs1, [=](auto i0, auto i1, auto i2) {
 	E(i0, i1) += A(i0, i2) * B(i2, i1);
@@ -348,11 +348,12 @@ auto knl3 = make_kernel<KPOL>(segs3, [=](auto i0, auto i1, auto i2) {
 
 auto decisions = format_decisions(ref_tuple(B,D,F), knl1, knl2, knl3);
 
-decisions.set_format_for(B, {{1,0}}, knl1);
-decisions.set_format_for(D, {{1,0}}, knl2);
-decisions.set_format_for(F, {{0,1}}, knl2);
-decisions.set_format_for(F, {{1,0}}, knl3);
+decisions.set_format_for(B, {{1,0}}, knl1); // column-major
+decisions.set_format_for(D, {{1,0}}, knl2); // column-major
+decisions.set_format_for(F, {{0,1}}, knl2); // row-major
+decisions.set_format_for(F, {{1,0}}, knl3); // column-major
 
+// Generate and run the computations with format conversions
 auto computation = decisions.finalize();
 computation();
 \end{lstlisting}
@@ -368,12 +369,12 @@ copy the data \textit{back} to the memory in the View,
 and then finally update the View's layout object.
 This work removes that barrier by providing a declarative data optimization system and evaluating
 it within the context of RAJALC.
-%expanding the declarative data optimization system begun by RAJALC.
+
 
 \subsection{Declarative Layout Transformations}
 Our approach, shown in action in Listing~\ref{FormatDecisions3MM}, introduces a single user-facing class, appropriately named \verb.FormatDecisions..
-Rather than inserting code blocks to change a View's data layout between kernel executions, the user register choices for what format the data should have during different computations. Lines 13-17 of Listing~\ref{FormatDecisions3MM} show four such registered choices.
-Once the user has finished registering their choices, \FormatDecisions{} looks for additional beneficial format conversions and generates a final computation object that makes format conversions and executes the computations, shown in lines 18 and 19.
+Rather than inserting code blocks to change a View's data layout between kernel executions, the user register choices for what format the data should have during different computations. Lines 13 through 17 of Listing~\ref{FormatDecisions3MM} show four such registered choices.
+Once the user has finished registering their choices, \FormatDecisions{} looks for additional beneficial format conversions and generates a final computation object that makes format conversions and executes the computations, shown in lines 19 and 20.
 
 \subsection{The \FormatDecisions{} API}
 The \FormatDecisions objects are initialized using the \\
@@ -416,7 +417,7 @@ When choosing this pair, the shorter \verb.set_format. was considered, but lacks
 \section{Constraint Model for Supplementary Transformations}
 
 In addition to the format changes registered by the user, \FormatDecisions{} also uses a constraint model to determine if additional format changes will improve performance. 
-This capability means that even without any registered format choices, \FormatDecisions{} often selects the same changes the user would themselves choose. \todo{can i back this claim up?}
+This capability means that even without any registered format choices, \FormatDecisions{} often selects the same changes the user would themselves choose.
 We encode the problem as an optimization problem where constraints encode registered decisions and the objective function encodes the estimated costs of format use and conversion.
 
 This optimization problem can intuitively formulated as a graph problem in which nodes represent using a format for a computation and the edges represent conversions between formats~\cite{kennedy1998automatic}.
@@ -481,7 +482,7 @@ When it comes time to solve the model, the input format variables are set based 
 		\label{graphModel:5}
 	\end{subfigure}
 
-	\caption{Graphical representation of the layout optimization problem for a View in 3MM. Nodes represent possible format choices and edges represent format conversions. User choices constrain the possible paths through the graph.}
+	\caption{Graphical representation of the layout optimization problem for a View in \textsc{3mm}. Nodes represent possible format choices and edges represent format conversions. User choices constrain the possible paths through the graph.}
 	\label{graphModel}
 	\Description[Optimization Graph Constraints]{Four directed graphs with edges progressively removed.}
 \end{figure}
@@ -549,7 +550,7 @@ This subsection explains how we calculate access orders and argues that the acce
 
 	\vspace{10px}
 
-	\begin{subfigure}{0.40\textwidth}
+	\begin{subfigure}[b]{0.40\textwidth}
 		\begin{lstlisting}
 auto row_major = make_permuted_layout(sizes, {{0,1}});
 auto column_major = make_permuted_layout(sizes, {{1,0}});
@@ -589,7 +590,7 @@ auto knl2 = make_kernel<Policy_201>(domain, matmul_lambda);
 		\label{accessOrder:code}
 	\end{subfigure}
 	\hspace{0.02\textwidth}
-	\begin{subfigure}{0.45\textwidth}
+	\begin{subfigure}[b]{0.45\textwidth}
 		\begin{center}
 		Argument Order $\xrightarrow[\text{Layout Order}]{permute}$ Layout-Normalized Order
 
@@ -611,7 +612,7 @@ auto knl2 = make_kernel<Policy_201>(domain, matmul_lambda);
 
 		knl2, C: $(0,1)$ $\xrightarrow[(0,1)]{permute}$ $(0,1)$ $\xrightarrow[(2,0,1)]{indexof}$ $(1,2)$.
 	\end{center}
-	\caption{The calculation process. The first transformation normalizes different layouts. The second transformation normalizes different policy orders. The resulting tuple represents the canonical data access with the same performance behavior. References with the same access order can be modeled with the same microbenchmark.}
+	\caption{The calculation process. The first transformation normalizes different layouts. The second normalizes different policy orders. The resulting tuple represents the canonical data access with the same performance behavior. References with the same access order can be modeled with the same microbenchmark.}
 	\label{accessOrder:calc}
 	\end{subfigure}
 
@@ -641,8 +642,8 @@ Microbenchmark 2 is an access to a 2-dimensional View in a 3-dimensional loop, a
 Microbenchmark 3 is an access to a 3-dimensional View in a 4-dimensional loop for a set argument order.
 Table~\ref{MicrobenchmarkDetails} summarizes them in more detail, including data sizes.
 The outermost loop is parallelized using OpenMP.
-See Section~\ref{sec:eval} for machine and compilation information.
-
+See Section~\ref{sec:systemDetails} for machine and compilation information.
+\label{sec:AccessMetric}
 \begin{table}
 	\centering
 	\begin{tabular}{|p{2.2cm}|p{1.6cm}|p{1.6cm}|p{1.5cm}|}
@@ -682,7 +683,7 @@ See Section~\ref{sec:eval} for machine and compilation information.
 	\Description[Access Order Execution Time Boxplot for Microbenchmark 3]{Fully described in the text}
 \end{subfigure}
 
-\caption{Execution times for three microbenchmarks using different access orders. Each access order group is jittered. \todo{Rerender these figures with the unit added to the Y-axis}}
+\caption{Execution times for three microbenchmarks using different access orders. Each access order group is jittered.}
 \end{figure*}
 
 Figure~\ref{AccessBenchmark1} shows the execution times for the different access orders for microbenchmark 1.
@@ -699,10 +700,10 @@ A similar pattern as the previous microbenchmarks emerges here: grouping based o
 
 %%%%%%%%%%%%%%%%%%%%%%
 \section{Experiment 1: RAJAPerf and miniQMC}
-\label{sec:eval}
+\label{sec:Experiment1}
 
 Our first evaluation experiment examines application performance and programmer productivity using three benchmarks.
-Two come from the polybench~\cite{pouchet2012polybench} section of the RAJAPerf benchmark suite~\cite{hornung2017raja} and one based on the determinant update from the miniQMC miniapp~\cite{richards2018fy18}.
+Two, \textsc{2mm} and \textsc{3mm}, come from the Polybench~\cite{pouchet2012polybench} section of the RAJAPerf benchmark suite~\cite{hornung2017raja} and one is based on the determinant update from the miniQMC miniapp~\cite{richards2018fy18}.
 While other benchmarks in the RAJAPerf suite have the potential for data layout optimization, they present imperfect nesting and triangular iteration spaces, which are not currently supported by our implementation. 
 Future work will add support for imperfect nesting through updating our cost estimator and symbolic evaluator to handle kernel calls with multiple lambdas. 
 Support for triangular iteration spaces is also part of our future research directions, but will require additional modification to the base RAJA library.
@@ -715,7 +716,6 @@ Then this temporary result is multiplied by $C$.
 \textsc{3mm} solves a similar matrix expression $A*B*C*D$ using three matrix multiplications.
 It computes $A*B$, then $C*D$, then multiplies the results.
 Finally, the benchmark extracted from miniQMC uses three matrix multiplications to update an inverted matrix. 
-\todo{write appendix implementation}
 
 \begin{table}
 	\centering
@@ -752,13 +752,17 @@ Figure~\ref{fig:speedups} reports the average speedup of the variants relative t
 	\Description[Polybench Speedups]{Bar chart for the speedup of the different Polybench kernels. Each kernel has a cluster of four bars, one for each variant. }
 \end{figure}
 
-\todo{discussion of results}
+The results are inconsistent across kernels and problem sizes. 
+For \textsc{2mm}, at the problem sizes 1 and 4 we see the \verb.Format_Decision. variant performs better than the hand-optimized varaint. 
+This is also the case for QMC at size 2 and all three sizes for \textsc{3mm}.
+While unexpected, given the extent to which \FormatDecisions{} relies on template programming, it may be caused by the compiler being able to prove more values in the \verb.Format_Decision. conversions are compile-time constant. 
 
+Another unexpected result is the \verb.Model_Choice. performance for the largest problem sizes in the \textsc{2mm} and \textsc{3mm} kernels.
+Part of this result may be related to the declining performance of \verb.Hand_Layout. and \verb.Format_Decision. as the problem size increased.
 
 
 
 \subsection{Productivity Evaluation}
-\todo{I still need to run this again bc the code has changed and I'm not lookig at the RAJA\_OpenMP variant anymore.}
 
 To evaluate the productivity of \textsc{FormatDecisions}, we report the source lines of code added or changed for each of the variants.
 This value is calculated by counting the number of line differences using python's \verb.Differ.. 
@@ -769,8 +773,8 @@ While our tool reduces the code required by more than half, it is important to n
 It is possible for a user to themselves write a function that performs the layout change.
 
 \begin{figure}
-	\includegraphics[width=\columnwidth]{PolybenchSLOC.pdf}
-	\caption{Source lines of code modified (added, changed, or removed) relative to the RAJA\_OpenMP variant. (Lower is better)}
+	\includegraphics[width=\columnwidth]{sloc.pdf}
+	\caption{Source lines of code modified (added, changed, or removed) relative to the  RAJALC variant. (Lower is better)}
 	\label{PolybenchSLOC}  
 	\Description[Polybench SLOC]{Bar chart for the source lines of code changed for the different Polybench kernels. Each kernel has a cluster of four bars, one for each variant that is not the baseline.}
 \end{figure}
@@ -788,7 +792,7 @@ A model is more relatively accurate when choices with better model scores have l
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{2mm-all.pdf}
-	\caption{Execution time and model score of all possible format choices for the 2MM kernel. The model selects the choice with the lowest score. Outlier shown as red triangle. All dimension sizes are 1024.}
+	\caption{Execution time and model score of all possible format choices for the \textsc{2mm} kernel. The model selects the choice with the lowest score. Outlier shown as red triangle. All dimension sizes are 1024.}
 	\label{2MMAllChoices}
 	\Description[Model Score and Execution Time]{Fully described in the text.}
 \end{figure}
@@ -858,8 +862,7 @@ In constrast to these specialized approaches, our approach seeks to support a wi
 
 We conclude with a number of limitations and directions for future work.
 The main limitation of the present study is the extent of the evaluation.
-While four benchmark programs gives a general picture of our technique and its impact, more benchmark kernels need to be examined.
-Similarly, an evaluation should be completed on a full application rather than only on benchmark loops.
+While three benchmark programs gives a general picture of our technique and its impact, more benchmark kernels need to be examined.
 Addressing this limitation will require support for more complex loop nests and iteration spaces, as discussed in Section~\ref{sec:Experiment1}.
 Another limitation is the singular nature of our performance model.
 Future work should incorporate an interface for defining and using different performance models, allowing users to prioritize different aspects of the transformation decision.
@@ -874,7 +877,7 @@ Overall, data format is a key consideration when optimizing applications.
 Especially in performance portability libraries like RAJA, developers need tools to implement those optimizations without sacrificing productivity.
 \FormatDecisions{} gives developers those tools.
 By combining declarative user specification of data format with runtime performance modeling, we can offer the performance improvements of data layout changes with significantly less developer effort.
-% \balance
+ \balance
 
 \bibliographystyle{abbrv}
 \bibliography{DataRAJALC}
