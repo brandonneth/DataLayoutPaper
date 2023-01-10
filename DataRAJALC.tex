@@ -59,7 +59,7 @@ escapeinside={<@}{@>}
 \newcommand{\ttt}[1]{{\texttt{#1}}}
 \usepackage{xspace}
 \newcommand{\FormatDecisions}[0]{{\textsc{FormatDecisions}}}
-
+\newcommand{\su}[1]{{#1$\times$}}
 \graphicspath{{./graphics/}{.}}
 
 \usepackage[subtle]{savetrees}
@@ -745,23 +745,47 @@ All compilation used Clang version 14.0.5 with \verb.-O3. optimization.
 \label{sec:systemDetails}
 Figure~\ref{fig:speedups} reports the average speedup of the variants relative to the \verb.RAJALC. variant across 5 runs. 
 
-\begin{figure}
-	\includegraphics[width=\columnwidth]{speedups.pdf}
-	\caption{Relative speedups of the different variants for different problem size factors. Higher is better.}
+\begin{figure*}
+	\includegraphics[width=0.9\textwidth]{speedups.pdf}
+	\caption{Relative speedups of the different variants for different problem size factors. Speedup is calculated in reference to the RAJALC variant. Higher is better.}
 	\label{fig:speedups}
 	\Description[Polybench Speedups]{Bar chart for the speedup of the different Polybench kernels. Each kernel has a cluster of four bars, one for each variant. }
-\end{figure}
+\end{figure*}
 
-The results are inconsistent across kernels and problem sizes. 
-For \textsc{2mm}, at the problem sizes 1 and 4 we see the \verb.Format_Decision. variant performs better than the hand-optimized varaint. 
-This is also the case for QMC at size 2 and all three sizes for \textsc{3mm}.
-While unexpected, given the extent to which \FormatDecisions{} relies on template programming, it may be caused by the compiler being able to prove more values in the \verb.Format_Decision. conversions are compile-time constant. 
+\todo{description of results, empirically}
 
-Another unexpected result is the \verb.Model_Choice. performance for the largest problem sizes in the \textsc{2mm} and \textsc{3mm} kernels.
-Part of this result may be related to the declining performance of \verb.Hand_Layout. and \verb.Format_Decision. as the problem size increased.
+For the \textsc{2mm} and \textsc{3mm} kernels, the performance of the three layout-changing variants are comparable. 
+For the standard (SizeFactor=1) problem size, the performance effects are minimal, with \verb.Hand_Layout. providing a 1.004$\times$ and 1.006$\times$ speedup to \textsc{2mm} and \textsc{3mm} respectively. 
+The \verb.Format_Decision. variant provides a small 1.003$\times$ speedup to both kernels, while the \verb.Model_Choice. variant shows a decrease in performance of 0.997$\times$ and 0.987$\times$, respectively. 
+For the middle problem size (SizeFactor=2), the performance effects of layout transformations are greater. 
+For \textsc{2mm}, we see a 1.101$\times$ speedup for the \verb.Hand_Layout. variant and 1.100$\times$ speedups for \verb.Format_Decision. and \verb.Model_Choice. 
+For \textsc{3mm}, we see a similar pattern slightly modified by the higher modeling costs of the \textsc{3mm} kernel. \verb.Hand_Layout. gives a 1.070$\times$ speedup, \verb.Format_Decision. a 1.068$\times$ speedup, and \verb.Model_Choice. a 1.063$\times$ speedup.
+For the large problem size (SizeFactor=4), the results are similar.
+All three variants of \textsc{2mm} see a 1.084$\times$ speedup, whereas the variants of \textsc{3mm} see a 1.057$\times$, 1.055$\times$, and 1.054$\times$ speedup.
 
+For the \textsc{correlation} kernel, there is less variability across problem sizes. 
+For SizeFactors 1, 2, and 4, the \verb.Hand_Layout. variant sees speedups of 1.073$\times$, 1.096$\times$, and 1.097$\times$, respectively. 
+The \verb.Format_Decision. variant does slightly better with speedups of 1.081$\times$, 1.107$\times$, and 1.106$\times$.
+\verb.Model_Choice. remains competitive at 1.068$\times$, 1.100$\times$, and 1.092$\times$.
 
+The \textsc{doitgen} kernel sees relatively flat performance across problem sizes and variants. All speedups are within 1\% of the baseline except \verb.Format_Decision. at SizeFactor=2, with a speedup of 1.012$\times$. 
 
+\textsc{qmc} fairs similarly to \textsc{doitgen}, although it sees more significant slowdowns. 
+At the standard problem size, \verb.Hand_Layout. and \verb.Format_Decision. see small slowdowns of 0.995$\times$ and 0.983$\times$. 
+The \verb.Model_Choice. has a more significant slowdown at 0.882$\times$ due to the overhead costs of running the model.
+For the larger problem sizes, this cost has less influence, at 0.970$\times$ at SizeFactor=2 and 0.995$\times$ at SizeFactor=4. 
+
+The \textsc{symm} kernel performs less consistently than the other kernels, but still sees directional matching between the \verb.Hand_Layout. and \verb.Format_Decision. variants. 
+The standard problem size gives a 1.012$\times$ speedup for \verb.Hand_Layout., a more significant 1.089$\times$ for \verb.Format_Decision., and a considerable slowdown of 0.833$\times$ for \verb.Model_Choice.. 
+For SizeFactor=2, we see speedups across the board, at 1.028$\times$, 1.124$\times$, and 1.008$\times$ respectively.
+Finally, for SizeFactor=4, \verb.Hand_Layout. and \verb.Format_Decision. give speedups of 1.049$\times$ and 1.089$\times$ while \verb.Model_Choice. gives another slowdown of 0.936$\times$.
+
+The \textsc{covariance} kernel is the least consistent of the set.
+At the standard problem size, \verb.Hand_Layout. performs worse than the original, at 0.920$\times$. 
+\verb.Format_Decision. sees a significant performance improvement with a 1.130$\times$ speedup while \verb.Model_Choice. performs the worst, at 0.755$\times$ of the original \verb.RAJALC. variant.
+For the second problem size, the directions of the performance effects remain the same, but their magnitudes change, at 0.850$\times$, 1.048$\times$, and 0.893$\times$. 
+Finally, for the large problem size, \verb.Hand_Layout. still sees a performance reduction at 0.830$\times$, \verb.Format_Decision. improves to 1.099$\times$, and \verb.Model_Choice. gives a slight speedup of 1.030$\times$.
+\todo{explain this}
 \subsection{Productivity Evaluation}
 
 To evaluate the productivity of \textsc{FormatDecisions}, we report the source lines of code added or changed for each of the variants.
