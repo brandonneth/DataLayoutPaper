@@ -702,11 +702,11 @@ A similar pattern as the previous microbenchmarks emerges here: grouping based o
 \section{Experiment 1: RAJAPerf and miniQMC}
 \label{sec:Experiment1}
 
-Our first evaluation experiment examines application performance and programmer productivity using three benchmarks.
-Two, \textsc{2mm} and \textsc{3mm}, come from the Polybench~\cite{pouchet2012polybench} section of the RAJAPerf benchmark suite~\cite{hornung2017raja} and one is based on the determinant update from the miniQMC miniapp~\cite{richards2018fy18}.
-While other benchmarks in the RAJAPerf suite have the potential for data layout optimization, they present imperfect nesting and triangular iteration spaces, which are not currently supported by our implementation. 
-Future work will add support for imperfect nesting through updating our cost estimator and symbolic evaluator to handle kernel calls with multiple lambdas. 
-Support for triangular iteration spaces is also part of our future research directions, but will require additional modification to the base RAJA library.
+Our first evaluation experiment examines application performance and programmer productivity using seven benchmarks.
+Six come from the Polybench~\cite{pouchet2012polybench} section of the RAJAPerf suite~\cite{hornung2017raja}. 
+Of those six, we added four--\textsc{correlation}, \textsc{covariance}, \textsc{doitgen}, and \textsc{symm}--for this contribution. 
+The seventh kernel, \textsc{qmc}, is based on the determinant update from the miniQMC miniapp~\cite{richards2018fy18}.
+
 
 
 
@@ -715,7 +715,10 @@ First, it computes $A*B$ and stores the results in a temporary array.
 Then this temporary result is multiplied by $C$.
 \textsc{3mm} solves a similar matrix expression $A*B*C*D$ using three matrix multiplications.
 It computes $A*B$, then $C*D$, then multiplies the results.
-Finally, the benchmark extracted from miniQMC uses three matrix multiplications to update an inverted matrix. 
+\textsc{correlation} and \textsc{covariance}, as the names suggest, calculate the correlation and covariance matrix for the input data. 
+\textsc{correlation} has four loop nests and \textsc{covariance} has three.
+\textsc{doitgen} is a multiresolution analysis kernel while \textsc{symm} computes a symmetric matrix-multiplication.
+\textsc{qmc} uses three matrix multiplications to update an inverted matrix. 
 
 \begin{table}
 	\centering
@@ -740,8 +743,9 @@ The \verb.Format_Decision. variant uses \FormatDecisions to register the identif
 Last, \verb.Model_Choice. allows the decision model to make all layout choices without providing any user-identified transformations.
 
 \subsection{Performance Evaluation}
-All performance results in this paper were collected on a single node with a 44-core IBM Power9 CPU and 256GB of CPU memory.
-All compilation used Clang version 14.0.5 with \verb.-O3. optimization.
+All performance results in this paper were collected on a single node with a 44-core IBM Power9 CPU and 256GB of CPU memory. 
+We run with 22 threads on one socket to avoid transfers over a relatively slow inter-socket connection.
+All compilation used GCC version 8.3.1 with \verb.-O3. optimization.
 \label{sec:systemDetails}
 Figure~\ref{fig:speedups} reports the average speedup of the variants relative to the \verb.RAJALC. variant across 5 runs. 
 
@@ -752,49 +756,56 @@ Figure~\ref{fig:speedups} reports the average speedup of the variants relative t
 	\Description[Polybench Speedups]{Bar chart for the speedup of the different Polybench kernels. Each kernel has a cluster of four bars, one for each variant. }
 \end{figure*}
 
-\todo{description of results, empirically}
-
 For the \textsc{2mm} and \textsc{3mm} kernels, the performance of the three layout-changing variants are comparable. 
-For the standard (SizeFactor=1) problem size, the performance effects are minimal, with \verb.Hand_Layout. providing a 1.004$\times$ and 1.006$\times$ speedup to \textsc{2mm} and \textsc{3mm} respectively. 
-The \verb.Format_Decision. variant provides a small 1.003$\times$ speedup to both kernels, while the \verb.Model_Choice. variant shows a decrease in performance of 0.997$\times$ and 0.987$\times$, respectively. 
+For the standard (SizeFactor=1) problem size, the performance effects are minimal, with \verb.Hand_Layout. providing a 1.003$\times$ and 1.006$\times$ speedup to \textsc{2mm} and \textsc{3mm} respectively. 
+The \verb.Format_Decision. variant provides a small 1.002$\times$ speedup to \textsc{2mm} and 1.003$\times$ to \textsc{3mm}, while the \verb.Model_Choice. variant shows a decrease in performance of 0.997$\times$ and 0.987$\times$, respectively. 
 For the middle problem size (SizeFactor=2), the performance effects of layout transformations are greater. 
-For \textsc{2mm}, we see a 1.101$\times$ speedup for the \verb.Hand_Layout. variant and 1.100$\times$ speedups for \verb.Format_Decision. and \verb.Model_Choice. 
-For \textsc{3mm}, we see a similar pattern slightly modified by the higher modeling costs of the \textsc{3mm} kernel. \verb.Hand_Layout. gives a 1.070$\times$ speedup, \verb.Format_Decision. a 1.068$\times$ speedup, and \verb.Model_Choice. a 1.063$\times$ speedup.
+For \textsc{2mm}, we see a 1.111$\times$ speedup for the \verb.Hand_Layout. variant and 1.110$\times$ speedups for \verb.Format_Decision. and \verb.Model_Choice. 
+For \textsc{3mm}, we see a similar pattern slightly modified by the higher modeling costs of the \textsc{3mm} kernel. \verb.Hand_Layout. gives a 1.083$\times$ speedup, \verb.Format_Decision. a 1.081$\times$ speedup, and \verb.Model_Choice. a 1.076$\times$ speedup.
 For the large problem size (SizeFactor=4), the results are similar.
-All three variants of \textsc{2mm} see a 1.084$\times$ speedup, whereas the variants of \textsc{3mm} see a 1.057$\times$, 1.055$\times$, and 1.054$\times$ speedup.
+All three variants of \textsc{2mm} see a 1.084$\times$ speedup, whereas the variants of \textsc{3mm} see a 1.080$\times$, 1.079$\times$, and 1.078$\times$ speedup.
 
-For the \textsc{correlation} kernel, there is less variability across problem sizes. 
-For SizeFactors 1, 2, and 4, the \verb.Hand_Layout. variant sees speedups of 1.073$\times$, 1.096$\times$, and 1.097$\times$, respectively. 
-The \verb.Format_Decision. variant does slightly better with speedups of 1.081$\times$, 1.107$\times$, and 1.106$\times$.
-\verb.Model_Choice. remains competitive at 1.068$\times$, 1.100$\times$, and 1.092$\times$.
+For \textsc{correlation}, there is less variability across problem sizes. 
+For SizeFactors 1, 2, and 4, the \verb.Hand_Layout. variant sees speedups of 1.046$\times$, 1.076$\times$, and 1.086$\times$, respectively. 
+The \verb.Format_Decision. variant does slightly better with speedups of 1.052$\times$, 1.086$\times$, and 1.096$\times$.
+\verb.Model_Choice. remains competitive at 1.049$\times$, 1.086$\times$, and 1.087$\times$.
+The \textsc{covariance} kernel performs similarly.
 
-The \textsc{doitgen} kernel sees relatively flat performance across problem sizes and variants. All speedups are within 1\% of the baseline except \verb.Format_Decision. at SizeFactor=2, with a speedup of 1.012$\times$. 
+The \textsc{doitgen} kernel sees relatively flat performance across problem sizes and variants. All speedups are within 1\% of the baseline except \verb.Hand_Layout. at SizeFactor=2, with a speedup of 1.011$\times$. 
 
 \textsc{qmc} fairs similarly to \textsc{doitgen}, although it sees more significant slowdowns. 
-At the standard problem size, \verb.Hand_Layout. and \verb.Format_Decision. see small slowdowns of 0.995$\times$ and 0.983$\times$. 
-The \verb.Model_Choice. has a more significant slowdown at 0.882$\times$ due to the overhead costs of running the model.
-For the larger problem sizes, this cost has less influence, at 0.970$\times$ at SizeFactor=2 and 0.995$\times$ at SizeFactor=4. 
+At the standard problem size, \verb.Hand_Layout. and \verb.Format_Decision. see small slowdowns of 0.995$\times$ and 0.982$\times$. 
+The \verb.Model_Choice. has a more significant slowdown at 0.891$\times$ due to the overhead costs of running the model.
+For the larger problem sizes, this cost has less influence, at 0.971$\times$ at SizeFactor=2 and 0.995$\times$ at SizeFactor=4. 
 
-The \textsc{symm} kernel performs less consistently than the other kernels, but still sees directional matching between the \verb.Hand_Layout. and \verb.Format_Decision. variants. 
-The standard problem size gives a 1.012$\times$ speedup for \verb.Hand_Layout., a more significant 1.089$\times$ for \verb.Format_Decision., and a considerable slowdown of 0.833$\times$ for \verb.Model_Choice.. 
-For SizeFactor=2, we see speedups across the board, at 1.028$\times$, 1.124$\times$, and 1.008$\times$ respectively.
-Finally, for SizeFactor=4, \verb.Hand_Layout. and \verb.Format_Decision. give speedups of 1.049$\times$ and 1.089$\times$ while \verb.Model_Choice. gives another slowdown of 0.936$\times$.
+The \textsc{symm} kernel performs less consistently than the other kernels, but still sees directional matching between the \verb.Hand_Layout. and \verb.Format_Decision. variants.
+The standard problem size gives a 1.018$\times$ speedup for \verb.Hand_Layout., a more significant 1.135$\times$ for \verb.Format_Decision., and a slowdown of 0.867$\times$ for \verb.Model_Choice.. 
+We attribute this slowdown for the standard problem size to the smaller amount of computation in the \textsc{symm} kernel that can offset the cost of the performance modeling. 
+For SizeFactor=2, we see speedups across the board, at 1.032$\times$, 1.174$\times$, and 1.053$\times$ respectively.
+Finally, for SizeFactor=4, \verb.Hand_Layout. and \verb.Format_Decision. give speedups of 1.046$\times$ and 1.175$\times$ while \verb.Model_Choice. gives a speedup of 1.075$\times$.
 
-The \textsc{covariance} kernel is the least consistent of the set.
-At the standard problem size, \verb.Hand_Layout. performs worse than the original, at 0.920$\times$. 
-\verb.Format_Decision. sees a significant performance improvement with a 1.130$\times$ speedup while \verb.Model_Choice. performs the worst, at 0.755$\times$ of the original \verb.RAJALC. variant.
-For the second problem size, the directions of the performance effects remain the same, but their magnitudes change, at 0.850$\times$, 1.048$\times$, and 0.893$\times$. 
-Finally, for the large problem size, \verb.Hand_Layout. still sees a performance reduction at 0.830$\times$, \verb.Format_Decision. improves to 1.099$\times$, and \verb.Model_Choice. gives a slight speedup of 1.030$\times$.
-\todo{explain this}
+
 \subsection{Productivity Evaluation}
 
-To evaluate the productivity of \textsc{FormatDecisions}, we report the source lines of code added or changed for each of the variants.
+To evaluate the productivity of \FormatDecisions{}, we report the source lines of code added or changed for each of the variants.
 This value is calculated by counting the number of line differences using python's \verb.Differ.. 
 We preprocess to remove all whitespace-only lines.
 Figure~\ref{PolybenchSLOC} shows the results.
-For the variants that make layout changes, we see a large reduction in the amount of changes required using \FormatDecisions{} compared to the by-hand implementation. 
-While our tool reduces the code required by more than half, it is important to note that this is with respect to an in-line format conversion.
-It is possible for a user to themselves write a function that performs the layout change.
+With the exception of \textsc{3mm} and \textsc{qmc}, using \FormatDecisions{} requires between 2 and 3$\times$ fewer code changes than implementing the transformations by hand. 
+When using the performance model to make the layout choices, this is reduced further, requiring 4 to 6$\times$ fewer code changes. 
+
+While the productivity benefit here is significant, \FormatDecisions{} is especially useful when making subsequent layout changes after the first. 
+Once a code has been changed to use \FormatDecisions{}, the change quantified in Figure~\ref{PolybenchSLOC}, further changes can be introduced with only a single line. 
+For example, manually tuning data layouts for a new machine amounts to a handful of reordered characters to describe the new layouts. 
+
+More important than the simple number of code changes when trying out new layouts is the ease of mistakes when implementing those transformations by hand. 
+When using \FormatDecisions{}, all the complexity of ensuring the transformations go as planned is boiled down to one method call.
+In the hand-implemented case, the programmer is responsible for correctly declaring the new data layout, optimizing the transformation itself, and appropriately updating the data structure to the new layout, among other things. 
+Forgetting one of these steps, or mistyping the desired data layout, can lead to incorrect results that could be caused by any of the different components.
+By removing this complexity, \FormatDecisions{} reduces the mental load on the programmer, freeing up capacity to explore more possible implementations.
+Overall, \FormatDecisions{} provides comparable--and sometimes better--performance improvements without the code complexity of implementing the transformations by hand.
+
+
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{sloc.pdf}
