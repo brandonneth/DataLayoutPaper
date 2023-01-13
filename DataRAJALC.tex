@@ -158,7 +158,7 @@ A significant body of work has developed Integer Linear Programming (ILP) formul
 A similar line of work~\cite{chen2004ilp,chen2005constraint,chen2005integrating, ozturk2011data} uses ILP-based constraint networks to combine data layout and schedule optimizations. 
 Both approaches were developed in the context of a compiler. 
 We build on their use of a performance model encoded as the objective function in an ILP problem to automate data layout decisions (partially or fully).
-Rather than only applying this data layout compiler technology automatically, we provide it to the user through a library interface while still enabling its automated use.
+Rather than only applying this data layout technology in the compiler, we provide it to the user through a library interface while still enabling its automated use.
 Our library and runtime approach allows the user to guide use of the technology to focus on loops most likely to benefit from it.
 However, where a compiler can run complex analyses without a runtime cost, the library must perform its analysis and decision-making at runtime and the interface must be high-level while still providing enough control. 
 While a library approach comes with runtime overhead, it is more accessible to users and has access to runtime information that the compiler may not, such as loop bounds.
@@ -249,7 +249,7 @@ Section 7 reviews related work and section 8 concludes.
 \label{sec:kernelObjects}
 
 We use a variety of components of the performance portability C++ library RAJA to enable automatic data format transformations, as well as features of the loop chain extension RAJALC~\cite{neth2021inter}. 
-This section reviews how a computation is described in RAJA, working with the implementation of the \textsc{3mm} kernel (i.e., three matrix multiplications) found in Listing~\ref{3MMStart}.
+This section reviews how a computation is programmed in RAJA, working with the implementation of the \textsc{3mm} kernel (i.e., three matrix multiplications) found in Listing~\ref{3MMStart}.
 
 The foundational elements of RAJA are the execution constructs, \verb.forall. and \verb.kernel.. 
 These templated functions execute a loop immediately, whereas the RAJALC \verb.make_forall. and \verb.make_kernel. extensions create wrapper objects that are executed through the call operator. 
@@ -378,12 +378,12 @@ Once the user has finished registering their choices, \FormatDecisions{} looks f
 
 \subsection{The \FormatDecisions{} API}
 The \FormatDecisions objects are initialized using the \\
- \verb.format_decisions. function with the data to potentially transform and the computations in which the data will be used.
+ \verb.format_decisions. function with the data to potentially transform and the computations in which the data is used.
 \FormatDecisions{} supports four operations: registering format decisions, turning the supplementary modeling on and off, running the supplementary model, and generating the final computation.
 
 The user registers format decisions with two methods.
 The first, \verb.set_format_for()., takes as arguments the View, the desired dimensional ordering, and the computation.
-Without requiring that the conversion occurs immediately before the computation, it ensures that while that computation executes the View will have the desired format.
+Without requiring that the conversion occurs immediately before the computation, it ensures that while that computation executes the View has the desired format.
 The second method, \verb.set_output_format()., takes a View and a dimensional ordering and ensures the View has that layout after the sequence of computations is done executing.
 
 
@@ -392,7 +392,7 @@ In the case where the user does not want the supplementary model to run, they ca
 
 Regardless of whether the user has turned the model off or left it on, 
 after the user has registered their choices, the complete computation with interspersed format conversions is generated using the \verb.finalize. method.
-If the user does not call the \verb.lock. method, this function also runs the model to identify additional changes that may be beneficial. The model will not overwrite user-registered decisions.
+If the user does not call the \verb.lock. method, this function also runs the model to identify additional changes that may be beneficial. The model does not overwrite user-registered decisions.
 
 \subsection{Selecting Decision Semantics}
 
@@ -402,7 +402,7 @@ However, it is often desirable to specify the format the data should be in at th
 A single registering function cannot provide this capability. 
 
 Another important consideration is the semantics of the registered decisions. 
-Should the user be registering format conversions or should they be registering the format with the assumption that any necessary conversion will be made?
+Should the user be registering format conversions or should they be registering the format with the assumption that any necessary conversion is made by the library?
 We argue that it should be the latter.
 First, registering formats is more declarative, as it does not dictate exactly how or when the data is converted to the desired format.
 Second, registering conversions requires specification of both the input and output formats. 
@@ -416,7 +416,7 @@ When choosing this pair, the shorter \verb.set_format. was considered, but lacks
 %%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Constraint Model for Supplementary Transformations}
 
-In addition to the format changes registered by the user, \FormatDecisions{} also uses a constraint model to determine if additional format changes will improve performance. 
+In addition to the format changes registered by the user, \FormatDecisions{} also uses a constraint model to determine if additional format changes would improve performance. 
 This capability means that even without any registered format choices, \FormatDecisions{} often selects the same changes the user would themselves choose.
 We encode the problem as an optimization problem where constraints encode registered decisions and the objective function encodes the estimated costs of format use and conversion.
 
@@ -461,7 +461,7 @@ When it comes time to solve the model, the input format variables are set based 
 	\hspace{0.05\textwidth}
 	\begin{subfigure}[t]{0.2\textwidth}
 		\includegraphics[page=4,width=\textwidth]{ModelProgression.pdf}
-		\caption{After the input format has been set and before the problem is solved. The model will pick the output format and the format for knl1.}
+		\caption{After the input format has been set and before the problem is solved. The model picks the output format and the format for knl1.}
 		\label{graphModel:4}
 	\end{subfigure}
 
@@ -491,23 +491,23 @@ When it comes time to solve the model, the input format variables are set based 
 
 The objective function for our model estimates the runtime performance of different format choices by considering the costs of format uses and format conversions.
 
-Each View reference in the computation contributes one term to the objective function for each possible data layout. This means that the reference \verb.F(i2,i1). in \verb.knl3. will contribute two terms.
-The first term,  $c * x_{(F,row,knl3)}$, will represent the cost of that reference if \verb.F. were in row-major order. 
-The second term, $c^\prime * x_{(F,col,knl3)}$ will represent the cost of that reference if \verb.F. were in column-major order.
-Because \verb.F. is not referenced in the first kernel, the objective function will not contain linear terms for either $x_{(F,row,knl1)}$ or $x_{(F,col,knl1)}$.
-However, these decision variables will appear in terms for format conversion costs.
+Each View reference in the computation contributes one term to the objective function for each possible data layout. This means that the reference \verb.F(i2,i1). in \verb.knl3.  contributes two terms.
+The first term,  $c * x_{(F,row,knl3)}$,  represents the cost of that reference if \verb.F. were in row-major order. 
+The second term, $c^\prime * x_{(F,col,knl3)}$  represents the cost of that reference if \verb.F. were in column-major order.
+Because \verb.F. is not referenced in the first kernel, the objective function does not contain linear terms for either $x_{(F,row,knl1)}$ or $x_{(F,col,knl1)}$.
+However, these decision variables appear in terms for format conversion costs.
 
 Because a format conversion depends the format coming in and going out of the conversion, jconversion cost terms contain two decision variables.
 For example, consider the conversion step between \verb.knl1. and \verb.knl2..
 There are two possible conversions to consider: row-major to row-major and column-major to row-major. 
-Converting from row-major to row-major requires no action, so we will find the term $0 * x_{(F,row,knl1)} * x_{(F,row,knl2)}$ in the objective function.
-Converting from column-major to row-major does require a reformating, so we will also find a term $c^{\prime\prime} * x_{(F,col,knl1)} * x_{(F,row,knl2)}$ in the objective function.
+Converting from row-major to row-major requires no action, so we  find the term $0 * x_{(F,row,knl1)} * x_{(F,row,knl2)}$ in the objective function.
+Converting from column-major to row-major does require a reformating, so we  also find a term $c^{\prime\prime} * x_{(F,col,knl1)} * x_{(F,row,knl2)}$ in the objective function.
 
-Once the objective function is constructed, we can search for the format choices that minimize it, but first we need to determine the actual values the cost coefficients will have.
+Once the objective function is constructed, we can search for the format choices that minimize it, but first we need to determine the actual values for the cost coefficients.
 
 \subsection{Determining Cost Coefficients}
 
-Accurate estimations are key to selecting formats with good performance, so we utilize runtime microbenchmarking to incorporate empirical, system-specific profiling data into the model.
+Accurate estimations are key to selecting formats with good performance, so we use runtime microbenchmarking to incorporate empirical, system-specific profiling data into the model.
 However, because this microbenchmarking occurs at runtime, the overhead can meaningfully impact overall performance. 
 To mitigate this effect, we reuse microbenchmarking results by modeling choices based on their access order.
 The access order for a View reference encodes the ordering of the index arguments, the View's layout, and the kernel's execution policy.
@@ -815,7 +815,7 @@ Overall, \FormatDecisions{} provides comparable--and sometimes better--performan
 \end{figure}
 
 
-\section{Experiment 2: Exhaustive Search for \textsc{2mm}}
+\section{Experiment 2:  Exhaustive Search for \textsc{2mm}}
 
 Our second experiment further examines the efficacy of our model. 
 Whereas the experiments of in Section~\ref{sec:AccessMetric} examined the efficacy of access order representing individual accesses, this experiment considers the model as a whole.
@@ -842,7 +842,7 @@ This experiment also uncovers a limitation of our approach.
 Notice that many of the different format choices have the same model score.
 While their execution times do cluster, there is still variability in their distribution.
 When there are multiple choices with   the best model score, the final choice is random amongst them.
-Future work will need to develop a procedure for making a more intelligent selection among the well-scoring options. 
+Future work needs to develop a procedure for making a more intelligent selection among the well-scoring options. 
 This may involve considering the cache interactions of the different references in a kernel. 
 
 
