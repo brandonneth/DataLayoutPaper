@@ -182,11 +182,11 @@ This paper includes the following contributions:
 \item The \FormatDecisions{} API implemented in RAJA for specifying data layouts and data layout transformations;
 \item A performance model to select data layouts based on runtime microbenchmarking and a data layout transformation strategy for a loop chain;
 \item An optimization that increases the reuse of microbenchmarking information; and
-\item Performance results and source lines of code (SLOC) for four variants of three benchmark kernels comparing \FormatDecisions{} to hand-implemented optimization.
+\item Performance results and source lines of code (SLOC) for four variants of seven benchmark kernels comparing \FormatDecisions{} to hand-implemented optimization.
 \end{itemize} 
 
 The rest of the paper proceeds as follows. 
-Section 2 reviews the RAJA library and prior extensions we use in the current work.
+Section 2 reviews the RAJA library, prior extensions we use in the current work, and new support for symbolic description of iteration spaces.
 Section 3 introduces the \FormatDecisions{} interface.
 Sections 4 detail how we construct our performance model and estimate the costs of different layout conversion choices.
 Sections 5 and 6 evaluate the impact of \FormatDecisions{}  on performance and productivity.
@@ -317,6 +317,8 @@ for(int i = 0; i < N; i++) {
 
 auto i_seg = make_symbolic_segment(0,N);
 auto j_seg = make_symbolic_segment(i_seg, N);
+auto segs = make_tuple(i_seg, j_seg);
+
 	\end{lstlisting}
 	\Description[Triangular iteration space implemented in C++ and using our symbolic iteration space description.]{Fully described in the text.}
 \end{figure}
@@ -831,7 +833,7 @@ While the productivity benefit here is significant, \FormatDecisions{} is especi
 Once a code has been changed to use \FormatDecisions{}, the change quantified in Figure~\ref{PolybenchSLOC}, further changes can be introduced with only a single line. 
 For example, manually tuning data layouts for a new machine amounts to a handful of reordered characters to describe the new layouts. 
 
-More important than the simple number of code changes when trying out new layouts is the ease of mistakes when implementing those transformations by hand. 
+Perhaps more important than the simple number of code changes when trying out new layouts is the ease of mistakes when implementing those transformations by hand. 
 When using \FormatDecisions{}, all the complexity of ensuring the transformations go as planned is boiled down to one method call.
 In the hand-implemented case, the programmer is responsible for correctly declaring the new data layout, optimizing the transformation itself, and appropriately updating the data structure to the new layout, among other things. 
 Forgetting one of these steps, or mistyping the desired data layout, can lead to incorrect results that could be caused by any of the different components.
@@ -939,6 +941,9 @@ Beyond expanding the space of data formats the system can support, another direc
 Compared to CPU computing, programming systems for accelerators expect the programmer to take more responsibility for managing data movement.
 The \FormatDecisions interface could be extended to allow users to mark kernels for offloading while the underlying symbolic evaluation could be used to ensure all necessary data is accessible to the accelerator in a format that is performant for that system. 
 
+Finally, \FormatDecisions could be integrated with the loop schedule transformation framework of RAJALC. 
+This would enable the simultaneous optimization of both the schedule and the data layout, giving the programmer even greater control over the execution of their computations.
+Such an integration presents an interesting interface design problem in how to refer to the products of schedule transformations that may combine multiple loops into one. 
 
 Overall, data format is a key consideration when optimizing applications.
 Especially in performance portability libraries like RAJA, developers need tools to implement those optimizations without sacrificing productivity.
