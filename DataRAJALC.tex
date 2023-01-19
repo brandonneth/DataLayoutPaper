@@ -831,7 +831,7 @@ When using the performance model to make the layout choices, this is reduced fur
 
 While the productivity benefit here is significant, \FormatDecisions{} is especially useful when making subsequent layout changes after the first. 
 Once a code has been changed to use \FormatDecisions{}, the change quantified in Figure~\ref{PolybenchSLOC}, further changes can be introduced with only a single line. 
-For example, manually tuning data layouts for a new machine amounts to a handful of reordered characters to describe the new layouts. 
+For example, manually tuning data layouts for a new machine amounts to a handful of reordered characters to describe the new layouts, the second argument in the calls on lines 13-16 of Listing~\ref{FormatDecisions3MM}. 
 
 Perhaps more important than the simple number of code changes when trying out new layouts is the ease of mistakes when implementing those transformations by hand. 
 When using \FormatDecisions{}, all the complexity of ensuring the transformations go as planned is boiled down to one method call.
