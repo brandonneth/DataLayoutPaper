@@ -743,8 +743,6 @@ Of those six, we added four--\textsc{correlation}, \textsc{covariance}, \textsc{
 The seventh kernel, \textsc{qmc}, is based on the determinant update from the miniQMC miniapp~\cite{richards2018fy18}.
 
 
-
-
 \textsc{2mm} solves the matrix expression $A*B*C$ using two matrix multiplications. 
 First, it computes $A*B$ and stores the results in a temporary array.
 Then this temporary result is multiplied by $C$.
@@ -792,32 +790,38 @@ Figure~\ref{fig:speedups} reports the average speedup of the variants relative t
 \end{figure*}
 
 For the \textsc{2mm} and \textsc{3mm} kernels, the performance of the three layout-changing variants are comparable. 
-For the standard (SizeFactor=1) problem size, the performance effects are minimal, with \verb.Hand_Layout. providing a 1.003$\times$ and 1.006$\times$ speedup to \textsc{2mm} and \textsc{3mm} respectively. 
-The \verb.Format_Decision. variant provides a small 1.002$\times$ speedup to \textsc{2mm} and 1.003$\times$ to \textsc{3mm}, while the \verb.Model_Choice. variant shows a decrease in performance of 0.997$\times$ and 0.987$\times$, respectively. 
+For the standard (SizeFactor=1) problem size, the performance effects are minimal, with \verb.Hand_Layout. providing a 0.3\% and 0.6\% speedup to \textsc{2mm} and \textsc{3mm} respectively. 
+The \verb.Format_Decision. variant provides a small 0.2\% speedup to \textsc{2mm} and 0.3\% to \textsc{3mm}, while the \verb.Model_Choice. variant shows a decrease in performance of 0.3\% and 1.3\%, respectively. 
 For the middle problem size (SizeFactor=2), the performance effects of layout transformations are greater. 
-For \textsc{2mm}, we see a 1.111$\times$ speedup for the \verb.Hand_Layout. variant and 1.110$\times$ speedups for \verb.Format_Decision. and \verb.Model_Choice. 
-For \textsc{3mm}, we see a similar pattern slightly modified by the higher modeling costs of the \textsc{3mm} kernel. \verb.Hand_Layout. gives a 1.083$\times$ speedup, \verb.Format_Decision. a 1.081$\times$ speedup, and \verb.Model_Choice. a 1.076$\times$ speedup.
+For \textsc{2mm}, we see a 11.1\% speedup for the \verb.Hand_Layout. variant and 11.0\% speedups for \verb.Format_Decision. and \verb.Model_Choice. 
+For \textsc{3mm}, we see a similar pattern slightly modified by the higher modeling costs of the \textsc{3mm} kernel. \verb.Hand_Layout. gives a 8.3\% speedup, \verb.Format_Decision. a 8.1\% speedup, and \verb.Model_Choice. a 7.6\% speedup.
 For the large problem size (SizeFactor=4), the results are similar.
-All three variants of \textsc{2mm} see a 1.084$\times$ speedup, whereas the variants of \textsc{3mm} see a 1.080$\times$, 1.079$\times$, and 1.078$\times$ speedup.
+All three variants of \textsc{2mm} see a 8.4\% speedup, whereas the variants of \textsc{3mm} see a 8.0\%, 7.9\%, and 7.8\% speedup.
 
 For \textsc{correlation}, there is less variability across problem sizes. 
-For SizeFactors 1, 2, and 4, the \verb.Hand_Layout. variant sees speedups of 1.046$\times$, 1.076$\times$, and 1.086$\times$, respectively. 
-The \verb.Format_Decision. variant does slightly better with speedups of 1.052$\times$, 1.086$\times$, and 1.096$\times$.
-\verb.Model_Choice. remains competitive at 1.049$\times$, 1.086$\times$, and 1.087$\times$.
+For SizeFactors 1, 2, and 4, the \verb.Hand_Layout. variant sees speedups of 4.6\%, 7.6\%, and 8.6\%, respectively. 
+The \verb.Format_Decision. variant does slightly better with speedups of 5.2\%, 8.6\%, and 9.6\%.
+\verb.Model_Choice. remains competitive at 4.9\%, 8.6\%, and 8.7\%.
 The \textsc{covariance} kernel performs similarly.
 
-The \textsc{doitgen} kernel sees relatively flat performance across problem sizes and variants. All speedups are within 1\% of the baseline except \verb.Hand_Layout. at SizeFactor=2, with a speedup of 1.011$\times$. 
+The \textsc{doitgen} kernel sees relatively flat performance across problem sizes and variants. All speedups are within 1.1\% of the baseline.
 
-\textsc{qmc} fairs similarly to \textsc{doitgen}, although it sees more significant slowdowns. 
-At the standard problem size, \verb.Hand_Layout. and \verb.Format_Decision. see small slowdowns of 0.995$\times$ and 0.982$\times$. 
-The \verb.Model_Choice. has a more significant slowdown at 0.891$\times$ due to the overhead costs of running the model.
-For the larger problem sizes, this cost has less influence, at 0.971$\times$ at SizeFactor=2 and 0.995$\times$ at SizeFactor=4. 
+\textsc{qmc} fares similarly to \textsc{doitgen}, although it sees more significant slowdowns. 
+At the standard problem size, \verb.Hand_Layout. and \verb.Format_Decision. see small slowdowns of 0.5\% and 1.8\%. 
+The \verb.Model_Choice. has a more significant slowdown at 10.9\% due to the overhead costs of running the model.
+For the larger problem sizes, this cost has less influence, at 2.9\% at SizeFactor=2 and 0.5\% at SizeFactor=4. 
+Unlike the other kernels, the transformed data in \textsc{qmc} are not square matrices. Because the matrices have a constant width of 64, the possible performance improvements are smaller.
+This is because even in an nonoptimal data layout, consecutively accessed elements of the matrix may still be loaded into cache together. 
+Furthermore, the absolute distance between consecutively accessed elements in memory remains constant as the problem size increases, so larger problem sizes do not change the available performance improvement.
+Combining the smaller available performance improvement with the cost of layout transformations led to an overall performance reduction.
+To confirm this cause, we increased the width of the matrices from 64 to 128 and 192 and and for SizeFactor=4 found speedups of 2.2\% and 3.9\%, respectively. 
+
 
 The \textsc{symm} kernel performs less consistently than the other kernels, but still sees directional matching between the \verb.Hand_Layout. and \verb.Format_Decision. variants.
-The standard problem size gives a 1.018$\times$ speedup for \verb.Hand_Layout., a more significant 1.135$\times$ for \verb.Format_Decision., and a slowdown of 0.867$\times$ for \verb.Model_Choice.. 
+The standard problem size gives a 1.8\% speedup for \verb.Hand_Layout., a more significant 13.5\% for \verb.Format_Decision., and a slowdown of 13.3\% for \verb.Model_Choice.. 
 We attribute this slowdown for the standard problem size to the smaller amount of computation in the \textsc{symm} kernel that can offset the cost of the performance modeling. 
-For SizeFactor=2, we see speedups across the board, at 1.032$\times$, 1.174$\times$, and 1.053$\times$ respectively.
-Finally, for SizeFactor=4, \verb.Hand_Layout. and \verb.Format_Decision. give speedups of 1.046$\times$ and 1.175$\times$ while \verb.Model_Choice. gives a speedup of 1.075$\times$.
+For SizeFactor=2, we see speedups across the board, at 3.2\%, 17.4\%, and 5.3\% respectively.
+Finally, for SizeFactor=4, \verb.Hand_Layout. and \verb.Format_Decision. give speedups of 4.6\% and 17.5\% while \verb.Model_Choice. gives a speedup of 7.5\%.
 
 
 \subsection{Productivity Evaluation}
@@ -929,8 +933,16 @@ In constrast to these specialized approaches, our approach seeks to support a wi
 
 \section{Conclusion}
 
-We conclude with several future avenues of work for the \FormatDecisions system. 
-In this work, we introduced support for format conversions among the space of dense, rectilinear permutation formats
+Overall, data format is an important consideration when optimizing applications.
+Yet, in performance portability libraries like RAJA and Kokkos, where one codebase is used for machines with different architectures, there are not yet tools for transforming the layout of data between parts of a computation. 
+Thus, if a developer wants to introduce these optimizations, they are left in a time-consuming, error-prone situation--further exacerbated by the potential for data layout transformations to not be worth the overhead.
+
+\FormatDecisions{} remedies this situation by combining declarative format specification  interface with runtime performance modeling to supplement user directives.
+Integrated directly into RAJA, but possible in any library with computation objects and a View-like abstraction, \FormatDecisions{} provides a flexible interface for quick exploration of data layout changes. 
+When evaluated against hand-implemented layout transformations on seven benchmark kernels, \FormatDecisions{} provides comparable performance improvements with a fraction of the code changes.
+
+We conclude with three avenues for future work.
+Here, we introduced support for format conversions among the space of dense, rectilinear permutation formats
 \footnote{The authors have been unable to find an existing name for this space of formats. We use \enquote{rectilinear} to distinguish from orderings that do not map linear threads of elements to consecutive memory, such as Z-orders or Morton orders. We use \enquote{permutation} to distinguish from the space's subset of lexicographic and colexicographic orders.}. 
 One avenue of future work would examine alternative dense formats, including Z-orders, Morton orders, tiled data formats, and SOA-AOS formats.
 This would require interface modifications to allow the specification of these orderings and implementation modifications to support those formats in RAJA.
@@ -939,16 +951,12 @@ While this would require more significant modifications to the RAJA library to s
 
 Beyond expanding the space of data formats the system can support, another direction for future research would examine support for accelerators like GPUs and FPGAs.
 Compared to CPU computing, programming systems for accelerators expect the programmer to take more responsibility for managing data movement.
-The \FormatDecisions interface could be extended to allow users to mark kernels for offloading while the underlying symbolic evaluation could be used to ensure all necessary data is accessible to the accelerator in a format that is performant for that system. 
+The \FormatDecisions{} interface could be extended to allow users to mark kernels for offloading while the underlying symbolic evaluation could be used to ensure all necessary data is accessible to the accelerator in a format that is performant for that system. 
 
-Finally, \FormatDecisions could be integrated with the loop schedule transformation framework of RAJALC. 
+Finally, \FormatDecisions{} could be integrated with the loop schedule transformation framework of RAJALC. 
 This would enable the simultaneous optimization of both the schedule and the data layout, giving the programmer even greater control over the execution of their computations.
 Such an integration presents an interesting interface design problem in how to refer to the products of schedule transformations that may combine multiple loops into one. 
 
-Overall, data format is a key consideration when optimizing applications.
-Especially in performance portability libraries like RAJA, developers need tools to implement those optimizations without sacrificing productivity.
-\FormatDecisions{} gives developers those tools.
-By combining declarative user specification of data format with runtime performance modeling, we can offer the performance improvements of data layout changes with significantly less developer effort.
  \balance
 
 \bibliographystyle{abbrv}
