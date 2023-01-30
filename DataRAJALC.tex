@@ -789,15 +789,13 @@ Figure~\ref{fig:speedups} reports the average speedup of the variants relative t
 	\Description[Polybench Speedups]{Bar chart for the speedup of the different Polybench kernels. Each kernel has a cluster of four bars, one for each variant. }
 \end{figure*}
 
-\todo{vary the sentence structure for this paragraph}
-
 For the \textsc{2mm} and \textsc{3mm} kernels, the performance of the three layout-changing variants are comparable. 
 For the standard (SizeFactor=1) problem size, the performance effects are minimal, with \verb.Hand_Layout. providing a 0.3\% and 0.6\% speedup to \textsc{2mm} and \textsc{3mm} respectively. 
 The \verb.Format_Decision. variant provides a small 0.2\% speedup to \textsc{2mm} and 0.3\% to \textsc{3mm}, while the \verb.Model_Choice. variant shows a decrease in performance of 0.3\% and 1.3\%, respectively. 
-For the middle problem size (SizeFactor=2), the performance effects of layout transformations are greater. 
+With the middle problem size (SizeFactor=2), the performance effects of layout transformations are greater. 
 For \textsc{2mm}, we see a 11.1\% speedup for the \verb.Hand_Layout. variant and 11.0\% for \verb.Format_Decision. and \verb.Model_Choice. 
 For \textsc{3mm}, we see a similar pattern slightly modified by the higher modeling costs of the \textsc{3mm} kernel. \verb.Hand_Layout. gives a 8.3\% speedup, \verb.Format_Decision. a 8.1\% speedup, and \verb.Model_Choice. a 7.6\% speedup.
-For the large problem size (SizeFactor=4), the results are similar.
+Finally, for the large problem size (SizeFactor=4), the results are similar.
 All three variants of \textsc{2mm} see a 8.4\% speedup, whereas the variants of \textsc{3mm} see a 8.0\%, 7.9\%, and 7.8\% speedup.
 
 For \textsc{correlation}, there is less variability across problem sizes. 
@@ -807,8 +805,10 @@ The \verb.Format_Decision. variant does slightly better at 5.2\%, 8.6\%, and 9.6
 The \textsc{covariance} kernel performs similarly.
 
 The \textsc{doitgen} kernel sees relatively flat performance across problem sizes and variants. All speedups are within 1.1\% of the baseline.
+Similarly, \textsc{qmc} sees flat performance, within 1.2\% of the baseline excluding the SizeFactor=1 \verb.Format_Decision. variant. 
+Its 2.3\% slowdown is likely due to the small width of the transformed data, where multiple consecutively accessed elements may still be loaded into the same cache line. 
+The \verb.Model_Choice. variant does not see this slowdown because of its heuristic checks for data that is large enough to be worth analyzing and transforming. 
 
-\todo{hopefully we'll see the qmc paragraph combined with doitgen}
 
 
 The \textsc{symm} kernel performs less consistently than the other kernels.
@@ -928,13 +928,18 @@ In constrast to these specialized approaches, our approach seeks to support a wi
 
 \section{Conclusion}
 
-Overall, data format is an important consideration when optimizing applications.
+Data format is an important consideration when optimizing applications.
 Yet, in performance portability libraries like RAJA and Kokkos, where one codebase is used for machines with different architectures, there are not yet tools for transforming the layout of data between parts of a computation. 
 Thus, if a developer wants to introduce these optimizations, they are left in a time-consuming, error-prone situation--further exacerbated by the potential for data layout transformations to not be worth the overhead.
 
-\FormatDecisions{} remedies this situation by combining declarative format specification  interface with runtime performance modeling to supplement user directives.
-Integrated directly into RAJA, but possible in any library with computation objects and a View-like abstraction, \FormatDecisions{} provides a flexible interface for quick exploration of data layout changes. 
+Our contribution, \FormatDecisions, remedies this situation by combining declarative format specification  interface with runtime performance modeling to supplement user directives.
+Integrated directly into the performance portability library RAJA, but possible in any library with computation objects and a View-like abstraction, \FormatDecisions{} provides a flexible interface for quick exploration of data layout changes. 
+Additionally, \FormatDecisions{} uses an ILP formulation to identify other profitable transformations to \enquote{fill in} the user specification.
+
 When evaluated against hand-implemented layout transformations on seven benchmark kernels, \FormatDecisions{} provides comparable performance improvements with a fraction of the code changes.
+Furthermore, subsequent modifications to the layout transformations, for example as part of porting a codebase to a new machine, are reduced to single-line changes. 
+This improves maintainability and reduces the potential for introducing bugs.
+Overall, by approaching data layout optimization from the direction of programmer productivity, \FormatDecisions{} enables developers to leverage the full capabilities of their applications with ease.
 
  \balance
 
