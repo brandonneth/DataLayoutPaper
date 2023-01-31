@@ -115,7 +115,7 @@ We then extend the library with existing compiler technology to guide the use of
 Thus, the model and runtime combine to \enquote{fill in} layout choices that the user did not specify.
 Our approach provides the \FormatDecisions{} API that allows the user to specify as much of the layout information as they please and still obtain the performance benefits of changing data layouts.  
 Further, because \FormatDecisions{} is built directly into the RAJA library, no additional build steps are required.
-We evaluate \FormatDecisions{} on three benchmarks from the RAJAPerf Suite, where it achieves similar performance improvements to hand-implemented optimizations.
+We evaluate \FormatDecisions{} on seven benchmarks from the RAJAPerf Suite, where it achieves similar performance improvements to hand-implemented optimizations.
 \end{abstract}
 \maketitle
 \def\@textbottom{\vskip \z@ \@plus 1pt}
@@ -127,7 +127,7 @@ We evaluate \FormatDecisions{} on three benchmarks from the RAJAPerf Suite, wher
 Data storage and access patterns are a key influence on overall application performance. 
 For example, on a typical cache-based system, iterating through a two-dimensional array in column-order when data is stored in row-order can lead to significant slowdown. 
 Although mechanisms such as compiler optimizations~\cite{wolf1991data,bixby1994automatic}
-and data layout policies like those in Kokkos~\cite{edwards2014kokkos} and RAJA~\cite{hornung2014RAJA} can align data layout with computation schedules, compiler optimizations lack user controls and layout policies become difficult to automate and laborious to manage by hand as the number of loops and arrays grow.
+and data layout policies like those in Kokkos~\cite{edwards2014kokkos} and RAJA~\cite{hornung2014RAJA} can align data layout with computation schedules, compiler optimizations lack user controls and layout policies become difficult to automate and laborious to manage by hand as the number of loops and arrays grows.
 
 Figure~\ref{IntroExample} shows the importance of a good data layout. 
 The ``BadLayout" column shows the execution time for a matrix multiplication where the three arrays are laid out opposite of their access order. 
@@ -162,7 +162,7 @@ Rather than only applying this data layout technology in the compiler, we provid
 Our library and runtime approach allows the user to guide use of the technology to focus on loops most likely to benefit from it.
 However, where a compiler can run complex analyses without a runtime cost, the library must perform its analysis and decision-making at runtime and the interface must be high-level while still providing enough control. 
 While a library approach comes with runtime overhead, it is more accessible to users and has access to runtime information that the compiler may not, such as loop bounds.
-Although useful advantages, these lead to sub-problems about how the library implementation can most leverage the compiler of the language in which it is embedded (C++ here) to force as much specialization as possible to achieve the ultimate goal of performance.
+Although useful advantages, these lead to sub-problems about how the library implementation can best leverage the compiler of the language in which it is embedded (C++ here) to force as much specialization as possible to achieve the ultimate goal of performance.
 
  
 
@@ -255,7 +255,7 @@ This section reviews how a computation is programmed in RAJA, the additions made
 
 The foundational elements of RAJA are the execution constructs, \verb.forall. and \verb.kernel.. 
 These templated functions execute a loop immediately, whereas the RAJALC \verb.make_forall. and \verb.make_kernel. extensions create wrapper objects that are executed through the call operator. 
-Calls to \verb.make_kernel. can be seen in lines 40 through 42 in Listing~\ref{3MMStart}. 
+Calls to \verb.make_kernel. can be seen in lines 36 through 38 in Listing~\ref{3MMStart}. 
 While the RAJALC functions create computation objects rather than immediately executing the computation, their interfaces are the same as their base RAJA counterparts.
 
 The execution constructs separate the specification of the computation from the specification of its schedule.
@@ -263,7 +263,7 @@ The template parameter describes the schedule of the computation as an execution
 Each level of the loop has its own schedule, where \verb.omp_parallel_for_exec. indicates an OpenMP parallel loop and \verb.loop_exec. indicates the compiler should make the decision.
 Other policies exist for vectorization and GPU-offloading.
 The runtime parameters describe the computation itself. 
-The first parameter is the iteration space for the loop, in this case 3 dimensional, defined on lines 33 and 34. 
+The first parameter is the iteration space for the loop, in this case 3-dimensional, defined on lines 33 and 34. 
 The second parameter is the loop body to execute for each iteration, passed as a lambda.
 The three loop bodies are defined on lines 21 through 31.
 After the computation objects are created on lines 36 through 38, they are executed through the call operator on lines 40 through 42.
@@ -291,7 +291,7 @@ Because different formats are optimal for different kernels, this creates an opp
 
 \subsection{Symbolic Iteration Spaces}
 \label{sec:SymbolicSegment}
-While RAJALC added support for kernel objects and the symbolic evaluation of those kernels, the description of a computation's iteration space was left unchanged. 
+RAJALC added support for kernel objects and the symbolic evaluation of those kernels, but the description of a computation's iteration space was left unchanged. 
 While RAJA can express a wide variety of computational patterns, it cannot express an important class of computations: those where inner loop bounds are a function of outer loop bounds.
 A classic example of this pattern is the triangular iteration space, shown in Listing~\ref{TriangularIterationSpace}.
 In such a loop nest, the bounds of the inner loop change with each iteration of the outer loop.
@@ -444,7 +444,7 @@ Second, registering conversions requires specification of both the input and out
 Any conversion can be specified with two format registrations, but no number of conversion registrations can specify the same thing as a single format registration.
 
 With these considerations in mind, we decided on two methods: \verb.set_format_for. and \verb.set_output_format..
-When choosing this pair, the shorter \verb.set_format. was considered, but lacks the mneumonic match between the words of the method name and the order of the parameters. We \textbf{set} the View to \textbf{format} X \textbf{for} computation Y. 
+When choosing this pair, the shorter \verb.set_format. was considered, but lacks the mnemonic match between the words of the method name and the order of the parameters. We \textbf{set} the View to \textbf{format} X \textbf{for} computation Y. 
 
 
 
@@ -933,13 +933,13 @@ Yet, in performance portability libraries like RAJA and Kokkos, where one codeba
 Thus, if a developer wants to introduce these optimizations, they are left in a time-consuming, error-prone situation--further exacerbated by the potential for data layout transformations to not be worth the overhead.
 
 Our contribution, \FormatDecisions, remedies this situation by combining declarative format specification  interface with runtime performance modeling to supplement user directives.
-Integrated directly into the performance portability library RAJA, but possible in any library with computation objects and a View-like abstraction, \FormatDecisions{} provides a flexible interface for quick exploration of data layout changes. 
+Integrated directly into the performance portability library RAJA, but possible in any library with computation objects and a data View-like abstraction, \FormatDecisions{} provides a flexible interface for quick exploration of data layout changes. 
 Additionally, \FormatDecisions{} uses an ILP formulation to identify other profitable transformations to \enquote{fill in} the user specification.
 
 When evaluated against hand-implemented layout transformations on seven benchmark kernels, \FormatDecisions{} provides comparable performance improvements with a fraction of the code changes.
 Furthermore, subsequent modifications to the layout transformations, for example as part of porting a codebase to a new machine, are reduced to single-line changes. 
 This improves maintainability and reduces the potential for introducing bugs.
-Overall, by approaching data layout optimization from the direction of programmer productivity, \FormatDecisions{} enables developers to leverage the full capabilities of their applications with ease.
+Overall, by approaching data layout optimization from the direction of programmer productivity, \FormatDecisions{} enables developers to explore different layouts with ease. 
 
  \balance
 
