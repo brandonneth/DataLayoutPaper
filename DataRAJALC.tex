@@ -106,84 +106,65 @@ escapeinside={<@}{@>}
 
 \begin{abstract}
 
-The layout of data in memory is a key consideration in high performance computing applications.
-From reducing cache and page misses to relieving pressure on memory bandwidth and avoiding inter-process communication, a good data layout improves performance at all levels of an application.
-While performance portability libraries like RAJA and Kokkos incorporate the data's layout into its initialization, some applications benefit from changing the data layout between kernels.
-Because these libraries do not support changing the data layout after initialization, application performance can suffer. 
-We remedy this shortcoming by prototyping a lightweight, declarative API for changing data layouts between computations in RAJA.
-We then extend the library with existing compiler technology to guide the use of layout changes based on our runtime performance model of their cost and benefit.
-Thus, the model and runtime combine to \enquote{fill in} layout choices that the user did not specify.
-Our approach provides the \FormatDecisions{} API that allows the user to specify as much of the layout information as they please and still obtain the performance benefits of changing data layouts.  
-Further, because \FormatDecisions{} is built directly into the RAJA library, no additional build steps are required.
-We evaluate \FormatDecisions{} on seven benchmarks from the RAJAPerf Suite, where it achieves similar performance improvements to hand-implemented optimizations.
+On today's high performance architectures, making good use of the memory hierarchy is a great challenge with a great reward.
+Especially challenging is achieving good memory performance in a codebase run on multiple systems.
+When performance considerations---architecture, memory hierarchy configuration, even input data characteristics---are hard-coded into the application, improved memory performance comes at the cost of maintainability and portability. 
+This is especially relevant for schedule and data optimizations that are applied across loops, where the optimization obscures the underlying operation of the code.
+To address this problem, performance portability libraries like RAJA, Kokkos, and YAKL provide abstractions for controlling how loops are scheduled/parallelized and how data is laid out initially.
+However, they do not support changing data layouts between loops without significant manual intervention.
+Our focus is on data layout transformations among linear data layouts and the challenges inherent in enabling their high-level control within performance portability libraries.
+First, we introduce programming abstractions into the RAJA library to collect and apply data format transformations between kernels.
+Then, we incorporate a built-in performance model for as-automated-as-desired transformation selection.
+Additionally, we extend RAJA's iteration space description to support loops with non-rectangular iteration spaces, expanding RAJA's expressive capability.
+Using our approach, we achieve similar performance improvement to hand-implemented data layout optimizations with significantly fewer code changes across seven benchmarks and one application case study.
 \end{abstract}
 \maketitle
 \def\@textbottom{\vskip \z@ \@plus 1pt}
 
-
-
-
 \section{Introduction}
-Data storage and access patterns are a key influence on overall application performance. 
-For example, on a typical cache-based system, iterating through a two-dimensional array in column-order when data is stored in row-order can lead to significant slowdown. 
-Although mechanisms such as compiler optimizations~\cite{wolf1991data,bixby1994automatic}
-and data layout policies like those in Kokkos~\cite{edwards2014kokkos} and RAJA~\cite{hornung2014RAJA} can align data layout with computation schedules, compiler optimizations lack user controls and layout policies become difficult to automate and laborious to manage by hand as the number of loops and arrays grows.
 
-Figure~\ref{IntroExample} shows the importance of a good data layout. 
-The ``BadLayout" column shows the execution time for a matrix multiplication where the three arrays are laid out opposite of their access order. 
-The ``GoodLayout" column shows the execution time for the same matrix multiplication when the arrays are laid out to match their access order.
-The ``LayoutChange" column shows the execution time of code that changes the layout from the bad layout to the good one.
-Finally, the ``SwitchAndRun" column shows the combined execution time of changing the layout from bad to good and then running.
-As the graph shows, performance improves  significantly (72\%) simply by changing the data layout, and the cost of performing the layout change is small (<1\% of execution time). 
+CPU speeds have always been way faster than memory speed.
+Memory hierarchies has been the main approach for dealing with this mismatch.
+Multi-level caches, memory, and storage.
+The challenge then becomes making efficient use of the hierarchy. 
+Getting the right data as near to the processor as possible, for as long as possible, and getting it back out to make room for the next parts.
+There are two ways of doing this: changing the order that data is accessed (loop schedules) and changing the order the data is stored (data layouts). 
 
-\begin{figure}
-	\includegraphics[width=\columnwidth]{IntroExampleGraph.pdf}
-	\caption{Execution time for matrix multiplication using optimal and non-optimal data layouts and execution time for converting from non-optimal to optimal. Section~\ref{sec:systemDetails} for machine and compilation information.}
-	\label{IntroExample}
-	\Description[Matrix Multiplication Execution Time for Different Layouts]{A bar plot showing a "Bad Layout" column with execution time greater than the "Good Layout" and "Layout Conversion" columns combined.}
-\end{figure}
+When optimizing code by hand, both types of transformation are a lot of work to implement. 
+This is especially true when the optimization is applied across multiple loops or in sequence.
+The original, modularized implementation of a computation is obscured by the changes of implementing the transformation. 
+When a code is meant to run on multiple systems or evolve to support new features, these optimizations can end up being more trouble than they are worth, the performance improvement offset by the increased maintenance and porting costs.
 
-General purpose libraries like Kokkos and RAJA and programming languages like Chapel~\cite{diaconescu2007approach} give programmers some control over the data layout of multi-dimensional arrays. However, this support is limited to the point of initialization.
-Thus, programmers must use that particular data format for the entire computation.
-While a developer could change the data layout mid-computation in RAJA, the developer must either modify RAJA library code or use multiple arrays for the same data. 
-Both options increase the code complexity and increase its fragility.
-The brave developer who chooses one of these options must still overcome yet another obstacle: selecting the right combination of formats.
+%NEed to pivot to portabilitiy libraries
+Performance portability libraries---like RAJA~\cite{hornung2014RAJA}, Kokkos~\cite{edwards2014kokkos}, and YAKL~\cite{norman2022portable}---partially address this problem.
+By breaking the description of a computation into seperable components, programmers can experiment with different schedules and layouts without obscuring the code's underlying operation.
+However, programmer control of the layout of data is limited to initialization. 
+Thus, a programmer must use that particular data format for the entire computation.
+Should they wish to change the data layout mid-computation, they would have to use multiple arrays for the same data, ensuring that both maintain the correct contents.
+The brave soul who chooses this option must still overcome yet another obstacle: selecting the right combination of formats.
 Even a modest computation of two loops that use four 2D arrays has more than 200 combinations from which to choose, so trying all possible options quickly becomes infeasible. 
 
-In this paper, we present \FormatDecisions{}, an approach for exposing data layout decisions to the programmer in the C++ portable, parallel library RAJA.
-The presented API allows the programmer to specify as many data layout decisions in a sequence of data-sharing loops (otherwise known as a loop chain~\cite{krieger2013loop}) as they choose.
-Then, using a portable cost model based on microbenchmarking, \FormatDecisions{} identifies any remaining layout changes estimated to improve performance. 
+We focus here on data layout transformations between linear data layouts.
+This is a well-known class of optimization, usually implemented within the context of a specialized compiler~\cite{bixby1994automatic,kennedy1995automatic,kennedy1998automatic,chen2004ilp,chen2005constraint,chen2005integrating, ozturk2011data}.
+However, there are clear limitations to the fully automated approach, evidenced by its exclusion from all major production compilers.
+Chief among them is the lack of programmer control.
+Others have made efforts to enable this user control in domain-specific languages, such as ExaSlang~\cite{kronawitter2018automatic} and Tiramisu~\cite{baghdadi2019tiramisu}.
+Unfortunately, while domain-specific languages are powerful expressive tools, they require specialized compilers and build pipelines. 
 
-A significant body of work has developed Integer Linear Programming (ILP) formulations to determine data layouts in distributed memory settings for programming languages like HPF and D~\cite{bixby1994automatic,kennedy1995automatic,kennedy1998automatic}. 
-A similar line of work~\cite{chen2004ilp,chen2005constraint,chen2005integrating, ozturk2011data} uses ILP-based constraint networks to combine data layout and schedule optimizations. 
-Both approaches were developed in the context of a compiler. 
-We build on their use of a performance model encoded as the objective function in an ILP problem to automate data layout decisions (partially or fully).
-Rather than only applying this data layout technology in the compiler, we provide it to the user through a library interface while still enabling its automated use.
-Our library and runtime approach allows the user to guide use of the technology to focus on loops most likely to benefit from it.
-However, where a compiler can run complex analyses without a runtime cost, the library must perform its analysis and decision-making at runtime and the interface must be high-level while still providing enough control. 
-While a library approach comes with runtime overhead, it is more accessible to users and has access to runtime information that the compiler may not, such as loop bounds.
-Although useful advantages, these lead to sub-problems about how the library implementation can best leverage the compiler of the language in which it is embedded (C++ here) to force as much specialization as possible to achieve the ultimate goal of performance.
+In this paper, we address the problem of enabling high-level programmer control of these layout transformations within RAJA, a C++ performance portability library.
+The first challenge is providing an interface for describing the format data should have for different parts of the computation.
+The second challenge is enabling programmer control without requiring it.
+This requires the composition of programmer decisions with automated decisions.
+Because the automated components are executed at run-time rather than compile-time, this introduces additional subproblems: properly modeling the behavior of the kernel and solving the model efficiently enough that the overhead can be amortized over the computation.
 
- 
-
-
-% We extend the RAJA C++ library to address this gap in support of data layout optimizations.
-% First, \FormatDecisions{} exposes a lightweight API for implementing mid-computation data layout optimizations.
-% We provide two methods --- \verb.set_format_before. and \verb.set_format_after. --- so the user can ensure the use of appropriate known formats \footnote{Since we completely expose the control, an autotuner can also try different options.}.
-% While the user can specify any known formats, a performance model guides any unspecified choices.
-% Based on run-time microbenchmarking, the model selects format changes through the solution of an ILP problem that considers the cost of converting formats against the potential improvement with an alternative format.
-% Our inclusion of a performance model means a developer can obtain performance improvement without having to determine the sequence of format changes themselves.
-% %% BRONIS: Most autotuning approaches do not use exhaustive testing
-% %% BRONIS: I think one could argue that we use the ILP problem to autotune
-% %% or use an autotuner to try every possible option.
-
-This paper includes the following contributions:
+We make the following contributions:
 \begin{itemize}
-\item The \FormatDecisions{} API implemented in RAJA for specifying data layouts and data layout transformations;
-\item A performance model to select data layouts based on runtime microbenchmarking and a data layout transformation strategy for a loop chain;
-\item An optimization that increases the reuse of microbenchmarking information; and
-\item Performance results and source lines of code (SLOC) for four variants of seven benchmark kernels comparing \FormatDecisions{} to hand-implemented optimization.
-\end{itemize} 
+\item Programming abstractions for specifying and applying data layout transformations between loops, implemented in the \FormatDecisions{} API;
+\item As-automated-as-desired transformation selection using a built-in performance model to augment user decisions; and 
+\item Support for a wider range of computations by expanding the types of iteration spaces that RAJA can represent.
+\end{itemize}
+We evaluate our contribution by comparing its performance and source lines of code (SLOC) changed/added to hand-implemented transformations.
+We perform this evaluation on a collection of benchmark kernels as well as on a case study of the miniQMC proxy application. 
 
 The rest of the paper proceeds as follows. 
 Section 2 reviews the RAJA library, prior extensions we use in the current work, and new support for symbolic description of iteration spaces.
@@ -191,6 +172,7 @@ Section 3 introduces the \FormatDecisions{} interface.
 Sections 4 detail how we construct our performance model and estimate the costs of different layout conversion choices.
 Sections 5 and 6 evaluate the impact of \FormatDecisions{}  on performance and productivity.
 Section 7 reviews related work and section 8 concludes.
+
 
 
 %%%%%%%%%%%%%%%
@@ -291,20 +273,61 @@ Because different formats are optimal for different kernels, this creates an opp
 
 \subsection{Symbolic Iteration Spaces}
 \label{sec:SymbolicSegment}
-RAJALC added support for kernel objects and the symbolic evaluation of those kernels, but the description of a computation's iteration space was left unchanged. 
-While RAJA can express a wide variety of computational patterns, it cannot express an important class of computations: those where inner loop bounds are a function of outer loop bounds.
-A classic example of this pattern is the triangular iteration space, shown in Listing~\ref{TriangularIterationSpace}.
-In such a loop nest, the bounds of the inner loop change with each iteration of the outer loop.
-Standard RAJA has no way of cleanly expressing this relationship between the loop bounds, restricting the space of computations for which RAJA can be used.
+While RAJA breaks the description of a computation into clear and seperable parts, one of those parts, the iteration space, is limited in its expressive capability.
+RAJA offers two abstractions for describing a dimension of an iteration space: the \verb.RangeSegment. and the \verb.ListSegment..
+The \verb.RangeSegment. represents a strided range of values while the \verb.ListSegment. represents an arbitrary list of values.
+The problem arises from the only way to combine segments to create multi-dimensional iteration spaces: cartesian product.
+Computations with dimensions that change through the computation, such as those with triangular iteration spaces, cannot be represented within this framework.
 
-We remedy this restriction by introducing a \verb.SymbolicSegment. type to the library. 
-We also add a function for creating them, called \verb.make_symbolic_segment..
-For segments with constant bounds, the \verb.SymbolicSegment. works the same as RAJA's other segment types. 
-For example, line 8 of Listing~\ref{TriangularIterationSpace} shows how the outer loop bound from 0 to N is created.
-For segments with bounds that are a function of outer loop values, the outer symbolic segment variable is used as a placeholder for its value during execution.
-Line 9 shows how the inner loop bound is created as a function of the outer loop value.
-While here we show a simple case, our approach supports all affine expressions of outer loop variables.
-When it comes time to execute a kernel that uses symbolic segments, the values for inner loop bounds read the current value of the relevant outer loop iterator and use that to calculate the bounds for the nest.
+A programmer who wishes to write a loop with an iteration space that is not a cartesian product has few options.
+The first option is the only one that still uses RAJA and maintains the abstraction of a two dimensional loop: write a kernel that has a rectangular iteration space and guards iterations that aren't part of the triangle.
+The second option sticks with RAJA but ditches the abstraction of a two dimensional loop entirely: construct and traverse an index array.
+The third option ditches RAJA to maintain the abstraction of a two dimensional loop: use regular C++.
+These options are all troublesome, for performance in the first case, and portability/maintainance in the second and third. 
+
+To address this limitation and represent iteration spaces with relations between the dimensions, we introduce the \verb.SymbolicSegment. type. 
+Unlike the \verb.RangeSegment., which requires integer values for its start, stop, and stride, the \verb.SymbolicSegment. supports expressions that combine other segments with constant values. 
+This process involves two elements.
+First, the \verb.SymbolicSegment. objects maintain their current value through the execution of a kernel. 
+Second, rather than returning a static value, the \verb.begin(). and \verb.end(). methods calculate the start and stop values dynamically based on the expressions used in their construction. 
+An example using our approach to define a triangular iteration space is shown in Listing~\ref{TriangularIterationSpace}.
+
+% \begin{lstlisting}
+% // Reference Triangular Loop Nest
+% for(int i = 0; i < N; i++) {
+% 	for(int j = i+1; j < M; j++) {
+% 		bar(i,j);
+% 	}
+% }
+
+% //Option 1: Guard
+% auto iSeg = RangeSegment(0,N);
+% auto jSeg = RangeSegment(0,M);
+% auto iterationSpace = make_tuple(iSeg,jSeg);
+
+% auto lambda1 = [&](auto i, auto j) {
+%   if (j >= i+1) {
+% 		bar(i,j);
+% 	}
+% };
+% kernel<2DPOLICY>(iterationSpace, lambda1);
+
+% //Otion 2: Index Array
+% std::vector<int> iVals;
+% std::vector<int> jVals;
+
+% for(int i = 0; i < N; i++) {
+% 	size_t numJs = M - (i+1);
+% 	std::vector<int> iTemp(numJs, i);
+% 	iVals.insert(iVals.end(), iTemp.begin(), iTemp.end());
+% 	std::vector<int> jTemp(numJs);
+
+% }
+
+% \end{lstlisting}
+
+
+
 
 \begin{figure}
 	\begin{lstlisting}[caption={An example of a loop with a triangular iteration space, expressed in C++ and using our SymbolicSegments.},label={TriangularIterationSpace}]
@@ -555,7 +578,7 @@ This subsection explains how we calculate access orders and argues that the acce
 		\begin{center}
 			\begin{tabular} {|c|c|c|}
 				\hline
-				Kernel & Policy Order \\ \hline 
+				Kernel & Policy Order \\ \hline
 				knl1 & (0,1,2) \\
 				knl2 & (2,0,1) \\
 				\hline
@@ -880,8 +903,13 @@ Future work needs to develop a procedure for making a more intelligent selection
 This may involve considering the cache interactions of the different references in a kernel. 
 
 
+\section{Layout Limitation}
 
+One limitation to this approach is the space of possible formats that it can support. While it would be desirable to convert data to blocked layouts (for tiling) or cache oblivious layouts (like Z order), the structure of the View and Layout types in RAJA limit format conversion to permuted linear orderings. Because the type of the layout is a template parameter to the View type, all layouts that a View might use in a computation must be the same type. This permits permuting linear orderings because the permutation of the dimensions are not part of the Layout type declaration. However, other layouts would have to be implemented as new types. This means that while it would be possible to change from one blocked layout to another blocked layout at runtime, it is not possible to change from a linear layout to a blocked layout, or a blocked layout to a linear one.
 
+This limitation could technically be overcome using virtualization through a generic Layout base type. However, with this approach, each data access would require a table lookup to resolve the virtualization. While an  individual lookup is quick, the performance implications of adding such a lookup for the highest frequency methods in a program are too costly.
+
+An additional limitation to the use of cache-oblivious layouts becomes clear when considering how these layouts are most often used. Cache-oblivious layouts are never used alone. Instead, they are combined with schedule transformations that implement traditionally iterative algorithms in a recursive manner. While such transformations may technically be possible in RAJA, they are beyond the scope of this paper. 
 
 \section{Related Work}
 
@@ -911,7 +939,7 @@ Another approach by Kofler, Cosenza, and Fahringer~\cite{kofler2015automatic} co
 With the exception of Majeti et al., these approaches do not provide an interface to the developer, and without exception are compiler-based approaches.
 Our approach presents an interface to the developer in the form of a library API, allowing user control and low-cost integration into existing workloads.
 
-Although still in the realm of the compiler-based tecniques, pragmas have been suggested as a solution to the problem of providing control over the transformations to the user.
+Although still in the realm of the compiler-based techniques, pragmas have been suggested as a solution to the problem of providing control over the transformations to the user.
 Proposals to add such pragmas have been submitted to OpenMP~\cite{kruse2019design} and Clang~\cite{kruse2018user}.
 Other work has implemented transformation pragmas into a source-to-source compiler~\cite{xu2014semi}. 
 
@@ -920,9 +948,6 @@ Domain-specific language approaches are another avenue for presenting users with
 Kronawitter et al.~\cite{kronawitter2018automatic} incorporate data layout specifications into the ExaSlang DSL.
 Using a polyhedral framework, the Tiramisu DSL~\cite{baghdadi2019tiramisu} also enables data layout transformation specifications.
 In constrast to these specialized approaches, our approach seeks to support a wider class of computations without needing the additional machinery required to use DSLs. 
-
-
-
 
 
 
