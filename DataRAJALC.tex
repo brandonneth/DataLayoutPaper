@@ -108,7 +108,7 @@ escapeinside={<@}{@>}
 
 On today's high performance architectures, making good use of the memory hierarchy is a great challenge with a great reward.
 Especially challenging is achieving good memory performance in a codebase run on multiple systems.
-When performance considerations---architecture, memory hierarchy configuration, even input data characteristics---are hard-coded into the application, improved memory performance comes at the cost of maintainability and portability. 
+When performance considerations --- architecture, memory hierarchy configuration, even input data characteristics --- are hard-coded into the application, improved memory performance comes at the cost of maintainability and portability. 
 This is especially relevant for schedule and data optimizations that are applied across loops, where the optimization obscures the underlying operation of the code.
 To address this problem, performance portability libraries like RAJA, Kokkos, and YAKL provide abstractions for controlling how loops are scheduled/parallelized and how data is laid out initially.
 However, they do not support changing data layouts between loops without significant manual intervention.
