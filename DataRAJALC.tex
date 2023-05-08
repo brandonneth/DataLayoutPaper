@@ -123,20 +123,18 @@ Using our approach, we achieve similar performance improvement to hand-implement
 
 \section{Introduction}
 
-CPU speeds have always been way faster than memory speed.
-Memory hierarchies has been the main approach for dealing with this mismatch.
-Multi-level caches, memory, and storage.
-The challenge then becomes making efficient use of the hierarchy. 
-Getting the right data as near to the processor as possible, for as long as possible, and getting it back out to make room for the next parts.
-There are two ways of doing this: changing the order that data is accessed (loop schedules) and changing the order the data is stored (data layouts). 
+The gap between CPU speeds and memory latency recurs throughout computing history, prompting ever-more complex architectural solutions.
+From the 384 byte ``B-store'' of the Ferranti Atlas~\cite{ferranti1960features} to the multi-level cache systems of today, memory hierarchy has endured as the solution.
+The challenge is handed from the architect to the programmer, who must write programs that make use of this hierarchy efficiently.
+There are two ways of doing this: changing the order in which data is accessed (loop schedules) and changing the order in which data is stored (data layouts).
 
-When optimizing code by hand, both types of transformation are a lot of work to implement. 
+When optimizing code by hand, both types of transformation are onerous to implement. 
 This is especially true when the optimization is applied across multiple loops or in sequence.
 The original, modularized implementation of a computation is obscured by the changes of implementing the transformation. 
 When a code is meant to run on multiple systems or evolve to support new features, these optimizations can end up being more trouble than they are worth, the performance improvement offset by the increased maintenance and porting costs.
 
 %NEed to pivot to portabilitiy libraries
-Performance portability libraries---like RAJA~\cite{hornung2014RAJA}, Kokkos~\cite{edwards2014kokkos}, and YAKL~\cite{norman2022portable}---partially address this problem.
+Performance portability libraries --- like RAJA~\cite{hornung2014RAJA}, Kokkos~\cite{edwards2014kokkos}, and YAKL~\cite{norman2022portable} --- partially address this problem.
 By breaking the description of a computation into seperable components, programmers can experiment with different schedules and layouts without obscuring the code's underlying operation.
 However, programmer control of the layout of data is limited to initialization. 
 Thus, a programmer must use that particular data format for the entire computation.
