@@ -112,7 +112,7 @@ When performance considerations --- architecture, memory hierarchy configuration
 This is especially relevant for schedule and data optimizations that are applied across loops, where the optimization obscures the underlying operation of the code.
 To address this problem, performance portability libraries like RAJA, Kokkos, and YAKL provide abstractions for controlling how loops are scheduled/parallelized and how data is laid out initially.
 However, they do not support changing data layouts between loops without significant manual intervention.
-Our focus is on data layout transformations among linear data layouts and the challenges inherent in enabling their high-level control within performance portability libraries.
+Our focus is on data layout transformations among canonical data layouts and the challenges inherent in enabling their high-level control within performance portability libraries.
 First, we introduce programming abstractions into the RAJA library to collect and apply data format transformations between kernels.
 Then, we incorporate a built-in performance model for as-automated-as-desired transformation selection.
 Additionally, we extend RAJA's iteration space description to support loops with non-rectangular iteration spaces, expanding RAJA's expressive capability.
@@ -124,7 +124,7 @@ Using our approach, we achieve similar performance improvement to hand-implement
 \section{Introduction}
 
 The gap between CPU speeds and memory latency recurs throughout computing history, prompting ever-more complex architectural solutions.
-From the 384 byte ``B-store'' of the Ferranti Atlas~\cite{ferranti1960features} to the multi-level cache systems of today, memory hierarchy has endured as the solution.
+From the 384 byte ``B-store'' of the 1960 Ferranti Atlas~\cite{ferranti1960features} to the multi-level cache systems of today, memory hierarchy has endured as the solution.
 The challenge is handed from the architect to the programmer, who must write programs that make use of this hierarchy efficiently.
 There are two ways of doing this: changing the order in which data is accessed (loop schedules) and changing the order in which data is stored (data layouts).
 
@@ -142,7 +142,7 @@ Should they wish to change the data layout mid-computation, they would have to u
 The brave soul who chooses this option must still overcome yet another obstacle: selecting the right combination of formats.
 Even a modest computation of two loops that use four 2D arrays has more than 200 combinations from which to choose, so trying all possible options quickly becomes infeasible. 
 
-We focus here on data layout transformations between linear data layouts.
+We focus here on data layout transformations between canonical\footnote{By canonical, we mean row-major and column-major layouts, as well as their higher dimensional analogues.} data layouts.
 This is a well-known class of optimization, usually implemented within the context of a specialized compiler~\cite{bixby1994automatic,kennedy1995automatic,kennedy1998automatic,chen2004ilp,chen2005constraint,chen2005integrating, ozturk2011data}.
 However, there are clear limitations to the fully automated approach, evidenced by its exclusion from all major production compilers.
 Chief among them is the lack of programmer control.
@@ -158,10 +158,10 @@ Because the automated components are executed at run-time rather than compile-ti
 We make the following contributions:
 \begin{itemize}
 \item Programming abstractions for specifying and applying data layout transformations between loops, implemented in the \FormatDecisions{} API;
-\item As-automated-as-desired transformation selection using a built-in performance model to augment user decisions; and 
+\item An As-automated-as-desired transformation selection system using a built-in performance model to augment user decisions; and 
 \item Support for a wider range of computations by expanding the types of iteration spaces that RAJA can represent.
 \end{itemize}
-We evaluate our contribution by comparing its performance and source lines of code (SLOC) changed/added to hand-implemented transformations.
+We evaluate our contributions by comparing its performance and source lines of code (SLOC) changed/added to hand-implemented transformations.
 We perform this evaluation on a collection of benchmark kernels as well as on a case study of the miniQMC proxy application. 
 
 The rest of the paper proceeds as follows. 
@@ -870,45 +870,6 @@ Overall, \FormatDecisions{} provides comparable--and sometimes better--performan
 \end{figure}
 
 
-\section{Experiment 2:  Exhaustive Search for \textsc{2mm}}
-
-Our second experiment further examines the efficacy of our model. 
-Whereas the experiments of in Section~\ref{sec:AccessMetric} examined the efficacy of access order representing individual accesses, this experiment considers the model as a whole.
-For the \textsc{2mm} benchmark, we evaluated the performance of all possible format choices and compare their execution times against their model scores (the value of the objective function for that choice).
-We average execution times over five runs.
-The absolute accuracy of our model is measured by the correlation between the execution time and the model score.
-However, we are most interested in the \textit{relative} accuracy of our model.
-A model is more relatively accurate when choices with better model scores have lower execution times, regardless of the specific values of the score or execution time.
-
-\begin{figure}
-	\includegraphics[width=\columnwidth]{2mm-all.pdf}
-	\caption{Execution time and model score of all possible format choices for the \textsc{2mm} kernel. The model selects the choice with the lowest score. Outlier shown as red triangle. All dimension sizes are 1024.}
-	\label{2MMAllChoices}
-	\Description[Model Score and Execution Time]{Fully described in the text.}
-\end{figure}
-
-
-Figure~\ref{2MMAllChoices} plots the model scores and execution times for the different choices. 
-While the overall relationship between model score and execution is as expected, there is one notable outlier, colored in red.
-This point, which represents the choice that makes no changes to the data's format, has an unusually high model score for its relatively low execution time. 
-This is potentially attributable to our model overestimating the cost of a non-ideal data layout and underestimating the cost of changing formats. 
-
-This experiment also uncovers a limitation of our approach.
-Notice that many of the different format choices have the same model score.
-While their execution times do cluster, there is still variability in their distribution.
-When there are multiple choices with   the best model score, the final choice is random amongst them.
-Future work needs to develop a procedure for making a more intelligent selection among the well-scoring options. 
-This may involve considering the cache interactions of the different references in a kernel. 
-
-
-\section{Layout Limitation}
-
-One limitation to this approach is the space of possible formats that it can support. While it would be desirable to convert data to blocked layouts (for tiling) or cache oblivious layouts (like Z order), the structure of the View and Layout types in RAJA limit format conversion to permuted linear orderings. Because the type of the layout is a template parameter to the View type, all layouts that a View might use in a computation must be the same type. This permits permuting linear orderings because the permutation of the dimensions are not part of the Layout type declaration. However, other layouts would have to be implemented as new types. This means that while it would be possible to change from one blocked layout to another blocked layout at runtime, it is not possible to change from a linear layout to a blocked layout, or a blocked layout to a linear one.
-
-This limitation could technically be overcome using virtualization through a generic Layout base type. However, with this approach, each data access would require a table lookup to resolve the virtualization. While an  individual lookup is quick, the performance implications of adding such a lookup for the highest frequency methods in a program are too costly.
-
-An additional limitation to the use of cache-oblivious layouts becomes clear when considering how these layouts are most often used. Cache-oblivious layouts are never used alone. Instead, they are combined with schedule transformations that implement traditionally iterative algorithms in a recursive manner. While such transformations may technically be possible in RAJA, they are beyond the scope of this paper. 
-
 \section{Related Work}
 
 Early approaches to optimizing data locality use schedule transformations rather than data layout transformations. 
@@ -964,7 +925,247 @@ Furthermore, subsequent modifications to the layout transformations, for example
 This improves maintainability and reduces the potential for introducing bugs.
 Overall, by approaching data layout optimization from the direction of programmer productivity, \FormatDecisions{} enables developers to explore different layouts with ease. 
 
- \balance
+
+
+\section{Case Study: Quantum Monte Carlo Simulation}
+
+In all but the simplest (and least interesting) quantum systems, solving the Schr\"odinger equation requires numerical approximation. 
+Quantum Monte Carlo algorithms have been developed as a solution to this problem of fast, accurate approximation.
+QMCPACK~\cite{kim2018qmcpack} is one application implementing this approach, and lead to the development of a computationally representative miniapp, called miniQMC~\cite{richards2018fy18}.
+
+As part of the evaluation of our contributions, we use \FormatDecisions{} to explore possible optimizations to miniQMC.
+miniQMC has four important kernels: determinant update, spline evaluation, Jastrow factors, and distance tables.
+Of these, the determinant update kernel is most important, as it both accounts for 30 to 50\% of computation time and is the source of the application's cubic scaling.
+
+The determinant update kernel is implemented by the \verb.DelayedUpdate. class.
+This class maintains four matrices and two vectors internally and uses one passed as arguments to the methods. 
+Once a sufficiently large number of updates have been collected, they are applied together with four loop nests.
+First is the matrix multiplication $tempMat = U^{\top} * Ainv$.
+Second is a one dimensional loop nest that updates $tempMat$.
+Third is the matrix multiplication $U = V * Binv$.
+Fourth and final is the matrix multiplication $Ainv -= U*tempMat$.
+Listing~\ref{updateInvMatRef} shows a reference implementation for this loopchain.
+\begin{lstlisting}[caption={Main loopchain of the determinant update kernel}]
+//tempMat = U^T * Ainv
+for(i = 0; i < dc; i++) {
+  for(j = 0; j < norb; j++) {
+		tempMat(i,j) = 0;
+    for(k = 0; k < norb; k++) {
+			tempMat(i,j) += U(k,i) * Ainv(k,j);
+		}
+	}
+}
+
+for(i = 0; i < dc; i++) {
+	tempMat(delay_list(i), i) -= 1;
+}
+
+//U = V * Binv
+for(i = 0; i < dc; i++) {
+  for(j = 0; j < norb; j++) {
+		U(i,j) = 0;
+    for(k = 0; k < norb; k++) {
+			U(i,j) += V(i,k) * Binv(k,j);
+		}
+	}
+}
+
+// A -= U * tempMat
+for(i = 0; i < dc; i++) {
+  for(j = 0; j < norb; j++) {
+    for(k = 0; k < norb; k++) {
+			Ainv(i,j) -= U(i,k) * tempMat(k,j);
+		}
+	}
+}
+\end{lstlisting}
+
+A look at the second loop in the chain presents an early challenge: indirect accesses. 
+\verb.tempMat. is indexed by the expression \verb.delay_list(i).. 
+This type of access is not supported by the symbolic evaluation capabilities in RAJALC, meaning that the automated performance model cannot be used here.
+However, this limitation should not restrict the programmer's ability to explore layout changes without the help of the performance model. 
+To overcome this limitation, \FormatDecisions{} must only generate symbolic evaluation code when instructed. 
+This led us to incorporate the \verb.model(). template method. 
+All symbolic evaluation is performed here, so code that does not make a call to the method need not limit their kernels to the accesses supported by RAJALC symbolic evaluation.
+
+
+The RAJA reference implementation makes calls to each of the kernels in sequence:
+\begin{lstlisting}
+knl1();
+knl2();
+knl3();
+knl4();
+\end{lstlisting}
+Its execution time is 10.18 seconds. All times reported here are for the 1 2 2 shape.
+
+Our first \FormatDecisions{} variant seeks to identify a performance baseline to get a sense of teh overhead of using \FormatDecisions{}:
+\begin{lstlisting}
+	auto dec = format_decisions(tie(U_, Ainv_, tempMat_, V_), knl1, knl2, knl3, knl4);
+	auto comp = dec.finalize();
+	comp();
+\end{lstlisting}
+Its execution time is 23.63 seconds. A significant slowdown that we will return to exploring momentarily, after identifying any layout transformations that reduce it.
+
+
+The exploration of possible data layout transformations begins with identifying views that are accessed out of order. 
+Four matrices appear hear: \verb.Ainv., \verb.U., \verb.V., and \verb.tempMat..
+We start with all layout changes with mismatch orderings between the schedule and loopchain. Those choices are here:
+\begin{lstlisting}
+	auto dec = format_decisions(tie(U_, Ainv_, tempMat_, V_), 
+	   knl1, knl2, knl3, knl4);
+	dec.set_format_for(Ainv_, {0,1}, knl1);
+	dec.set_format_for(Ainv_, {1,0}, knl4);
+	dec.set_format_for(U_, {0,1}, knl1);
+	dec.set_format_for(U_, {1,0}, knl3);
+	dec.set_format_for(U_, {1,0}, knl4);
+	dec.set_format_for(tempMat_, {1,0}, knl1);
+	dec.set_format_for(tempMat_, {0,1}, knl4);
+	dec.set_format_for(V_, {1,0}, knl3);
+	auto comp = dec.finalize();
+	comp();		
+\end{lstlisting}
+This fully transformed version executes in 27.28 seconds, slower than the \FormatDecisions{} baseline.
+
+To refine the transformation sequence, we note that the access to Ainv in the final kernel does not change most iterations, as it does not use the innermost loop index. 
+Our second transformation sequence uses this fact, making format choices only on views that mismatch and use the innermost index. Those choices are here:
+\begin{lstlisting}
+	auto dec = format_decisions(tie(U, V), knl1, knl2, knl3, knl4);
+	dec.set_format_for(U, {0,1}, knl1);
+	dec.set_format_for(U, {1,0}, knl4);
+	dec.set_format_for(V, {1,0}, knl3);
+	auto comp = dec.finalize();
+	comp();
+\end{lstlisting}
+This version executes in 22.38 seconds, an improvement over the \FormatDecisions{} baseline. 
+
+The third and fourth versions explore which format changes caused the performance improvement.
+Version three isolates \verb.U.:
+\begin{lstlisting}
+	auto dec = format_decisions(tie(U), knl1, knl2, knl3, knl4);
+	dec.set_format_for(U, {0,1}, knl1);
+	dec.set_format_for(U, {1,0}, knl4);
+	auto comp = dec.finalize();
+	comp();
+\end{lstlisting}
+It executes in 22.30 seconds.
+Version four isolates \verb.V..
+\begin{lstlisting}
+	auto dec = format_decisions(tie(V_), knl1, knl2, knl3, knl4);
+	dec.set_format_for(V_, {1,0}, knl3);
+	auto comp = dec.finalize();
+	comp();
+\end{lstlisting}
+It executes in 23.43 seconds, indicating that most of the performance improvements come from the transformations applied to \verb.U..
+
+With a useful layout optimization isolated, we return to the significant difference between the original RAJA baseline code and the \FormatDecisions{} baseline.
+The first possible cause to explore is overhead from initializing the \FormatDecisions{} object, registering transformations, and generating the final computation. 
+To explore this cause, we return to the baseline implementation and wrap these components in an additional timer:
+\begin{lstlisting}
+	firstGuessTimer->start();
+	auto dec = format_decisions(tie(U_, Ainv_, tempMat_, V_), knl1, knl2, knl3, knl4);
+	auto comp = dec.finalize();
+	firstGuessTimer->start();
+	comp();
+\end{lstlisting}
+This timer clocks a vanishly small contribution: 0.0022 seconds.
+
+If the overhead is not a product of the \FormatDecisions{} object itself, it must be from the computation object it generates.
+Regardless of what conversions are registered, this computation object is a fixed-length loop chain.
+Between each of the kernels from the computation itself is one converter kernel for each of the Views being considered as targets for conversions.
+When there are no conversions to make, these converters should quickly resolve to a no-op.
+To better understand their contribution to the overall execution time, we compare our baseline, which has four converters between each of the original kernels, with a version that has just one:
+\begin{lstlisting}
+	auto dec = format_decisions(tie(U), knl1, knl2, knl3, knl4);
+	auto comp = dec.finalize();
+	comp();
+\end{lstlisting}
+Compared to the baseline's 23.63 seconds, this version takes 23.43.
+While an ever-so-slight reduction in execution time, not nearly enough to account for the overhead.
+
+With the converters eliminated as a suspect, we are left only with the kernel container that holds the loop chain.
+We can create this container manually to exclude any possible influence of the \FormatDecisions{} code:
+\begin{lstlisting}
+auto chain = loop_chain(knl1, knl2, knl3, knl4);
+chain();
+\end{lstlisting}
+With an execution that takes 23.50 seconds, we have a clue as to the underlying cause.
+
+The next version creates the same loop chain object, but does not use it:
+\begin{lstlisting}
+auto comp = loop_chain(knl1, knl2, knl3, knl4);
+knl1();
+knl2();
+knl3();
+knl4();
+\end{lstlisting}
+It executes the same way as the RAJA baseline, but takes 23.44 seconds.
+This suggests that important compiler optimizations are no longer applied when the kernel objects are incorporated into another object. 
+
+
+
+
+\section{3D Partial Assembly}
+
+The kernel \verb.MASS3DPA. is notable for its complex nestings and chain length. 
+Within the outermost loop, it allocates two cubes, \verb.sm0. and \verb.sm1., of side length \verb.MDQ..
+There are five persistent allocations: \verb.B., \verb.Bt., \verb.D., \verb.X., and \verb.Y.. 
+\verb.B. and \verb.Bt. are two dimensional, while the others are four. 
+\verb.Y. is the output value.
+\verb.MQ1. is set to 5, and \verb.MD1. to 4. 
+
+
+\begin{lstlisting}[caption={3D Mass Partial Assembly reference implementation}]
+for e in 0..< NE {
+	//DDQ <- X
+	for (dy, qx, dx, dz) in (0,0,0,0)..<(D1D, Q1D, D1D, D1D) {
+		DDQ(dz, dy, qx) += X(dx, dy, dz, e) * Btsmem(qx, dx);
+	}
+
+	//DQQ <- DDQ
+	for (qy, qx, dy, dz) in (0,0,0,0)..<(Q1D, Q1D, D1D, D1D) {
+		DQQ(dz, qy, qx) += DDQ(dz, dy, qx) * Btsmem(qy, dy);
+	}
+
+	//QQQ <- DQQ and D
+	for (dy, qx, dz, qz) in (0,0,0,0)..<(Q1D, Q1D, D1D, Q1D) {
+		QQQ(qz, qy, qx) += DQQ(dz, qy, qx) * Bsmem(qz, dz) * D(qx, qy, qz, e);
+	}
+
+	for (d,q) in (0,0)..<(D1D, Q1D) {
+		Btsmem(d,q) = Bt(q,d);
+	}
+
+	//QQD <- QQQ
+	for (qy, dx, qx, qz) in (0,0,0,0)..<(Q1D, D1D, Q1D, Q1D) {
+		QQD(qz, qy, dx) += QQQ(qz, qy, qx) * Btsmem(dx, qx);
+	}
+
+	// QDD <- QQD
+	for (dy, dx, qy, qz) in (0,0,0,0)..<(D1D, D1D, Q1D, Q1D) {
+		QDD(qz, dy, dx) += QQD(qz, qy, dx) * Btsmem(dy, qy);
+	}
+
+	// Y <- QDD
+	for (dy,dx,qz,dz) in (0,0,0,0)..<(D1D, D1D, Q1D, D1D) {
+		Y(dx, dy, dz, e) += QDD(qz, dy, dx) * Btsmem(dz, qz);
+	}
+}
+
+\end{lstlisting}
+
+Overall, we go from an array of DDD (X), to an array of DDD (Y), trading one dimension at a time from D to Q, then back. DDD -> QQQ -> DDD. This is facilitated by the B array, which is addressed by the d and q dimensions of each of x, y, and z. 
+As we reach QQQ, we also multiply in D, then flip B's memory to convert back from Q to D.
+
+Xsmem is, at the beginning of each loop, assigned to a 3D hyperslice of the 4D \verb.X. structure.
+Each of the 3 dimensional structures, DDQ, DQQ, QQQ, QQD, and QDD, are temporaries that share the two cubed data structures. 
+Furthermore, all loops except for the one transposing \verb.Bt. are implemented using a temporary vector \verb.u. to accumulate the updates.
+
+To implement this kernel and explore its optimization, we begin with a version without the various temporary storage optimizations. 
+This means we give the temporary Views their own storage and accumulate directly into the multidimensional arrays rather than using a temporary vector.
+
+Additionally, to not clobber the existing port in RAJAPerf, we use lowercase variable names for teh views.
+  
+
 
 \bibliographystyle{abbrv}
 \bibliography{DataRAJALC}
