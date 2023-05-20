@@ -107,8 +107,7 @@ escapeinside={<@}{@>}
 \begin{abstract}
 
 On today's high performance architectures, using the memory hierarchy effectively is a great challenge with a great reward.
-Particularly challenging is achieving good memory performance in a codebase run on multiple heterogeneous systems.
-When performance considerations --- architecture, memory hierarchy configuration, even input data characteristics --- are hard-coded into the application's code, improved memory performance comes at the cost of maintainability and portability. 
+When performance considerations --- architecture, memory hierarchy configuration, even input data characteristics --- are hard-coded into the application, improved memory performance comes at the cost of maintainability and portability. 
 This is especially relevant for schedule and data optimizations that are applied across loops, where the optimization obscures the underlying operation of the code.
 To address this problem, performance portability libraries like RAJA, Kokkos, and YAKL provide abstractions for controlling how loops are scheduled/parallelized and how data is laid out initially.
 However, they do not support changing data layouts between loops without significant manual intervention.
@@ -138,7 +137,7 @@ Performance portability libraries --- like RAJA~\cite{hornung2014RAJA}, Kokkos~\
 By breaking the description of a computation into seperable components, programmers can experiment with different schedules and layouts without obscuring the code's underlying operation.
 However, programmer control of the layout of data is limited to initialization. 
 Thus, a programmer must use that particular data format for the entire computation.
-Should they wish to change the data layout mid-computation, they would have to use multiple arrays for the same data, ensuring that both maintain the correct contents.
+Should they wish to change the data layout mid-computation, they would have to use multiple arrays for the same data, ensuring that each maintain the correct contents.
 The brave soul who chooses this option must still overcome yet another obstacle: selecting the right combination of formats.
 Even a modest computation of two loops that use four 2D arrays has more than 200 combinations from which to choose, so trying all possible options quickly becomes infeasible. 
 
@@ -158,18 +157,18 @@ Because the automated components are executed at run-time rather than compile-ti
 We make the following contributions:
 \begin{itemize}
 \item Programming abstractions for specifying and applying data layout transformations between loops, implemented in the \FormatDecisions{} API;
-\item An As-automated-as-desired transformation selection system using a built-in performance model to augment user decisions; and 
+\item An as-automated-as-desired transformation selection system using a built-in performance model to augment user decisions; and 
 \item Support for a wider range of computations by expanding the types of iteration spaces that RAJA can represent.
 \end{itemize}
-We evaluate our contributions by comparing its performance and source lines of code (SLOC) changed/added to hand-implemented transformations.
-We perform this evaluation on a collection of benchmark kernels as well as on a case study of the miniQMC proxy application. 
+We evaluate our contributions by comparing its performance and source lines of code (SLOC) changed/added to hand-implemented transformations on a collection of benchmark kernels.
+Additionally, we examine its use on the miniQMC proxy application.
 
 The rest of the paper proceeds as follows. 
 Section 2 reviews the RAJA library, prior extensions we use in the current work, and new support for symbolic description of iteration spaces.
 Section 3 introduces the \FormatDecisions{} interface.
 Sections 4 detail how we construct our performance model and estimate the costs of different layout conversion choices.
 Sections 5 and 6 evaluate the impact of \FormatDecisions{}  on performance and productivity.
-Section 7 reviews related work and section 8 concludes.
+Section 7 reviews related work and Section 8 concludes.
 
 
 
@@ -239,7 +238,6 @@ Listing~\ref{3MMStart} shows these different components in action to implement a
 
 The operation a kernel performs is provided as a function object, usually through defining a lambda function that executes one loop iteration.
 For the 3MM kernel in Listing~\ref{3MMStart}, the three lambdas are defined on lines 21 through 31. 
-While these lambdas can optionally accept additional parameters for other values, this capability is not used here.
 
 The iteration space for a computation is defined as a tuple of dimensions.
 While a dimension can be defined using any generic container, RAJA provides ways to easily constructing ranges and lists.
@@ -259,33 +257,42 @@ On the middle statement, the \verb.seq_exec. policy means that the loop should b
 Finally, on the innermost statement, the \verb.simd_exec. policy means that the loop should be vectorized.
 By separating out the schedule from the operation and the iteration space, RAJA simplifies the process of exploring different schedules and their impact on performance.
 
+After defining the different pieces of a computation, they are recomposed using the execution constructs \verb.forall. and \verb.kernel..
+These templated functions execute a loop immediately, whereas the RAJALC \verb.make_forall. and \verb.make_kernel. extensions create wrapper objects that are executed through the call operator. 
+Calls to \verb.make_kernel. can be seen in lines 36 through 38 in Listing~\ref{3MMStart}, and the execution of the three matrix multiplications are found in lines 40 through 42. 
+While the RAJALC functions create computation objects rather than immediately executing the computation, their interfaces are the same as their base RAJA counterparts.
+
+\subsection{Views and Symbolic Evaluation}
+
 The last component of a computation is the data.
 Here, RAJA is quite flexible, offering, but not requiring, array wrappers called Views.
 The View object has two capabilities that make it an especially valuable tool within RAJA codes.
-First, Views use the call operator to perform memory accesses. 
-By overloading this call operator for symbolic iterator types, RAJALC enables the runtime symbolic evaluation of kernels that use Views.
-RAJALC uses the access information gathered from symbolic evaluation to ensure the correctness of its scheduling optimizations.
-This work uses RAJALC's runtime symbolic evaluation to inform our performance model.
-Second, Views fully parameterize their underlying data formats with the Layout object.
+First, Views fully parameterize their underlying data formats with the Layout object.
 Without Views, to switch their data from row-major to column-major, a programmer must change the definition of the array \textit{and} must change every access \verb.A[i][j]. to \verb.A[j][i]..
 This mechanism is prohibitively expensive, especially when the programmer does not yet know the performance impact of the decision.
 With Views however, the programmer only needs to change the View's definition: the layout permutation changes from $(0,1)$ to $(1,0)$. 
 In Listing~\ref{3MMStart}, \verb.A. is defined with the row-major $(0,1)$ layout, but \verb.B. is defined with the column-major $(1,0)$ layout. 
 Note that the change in \verb.B.'s layout does not change how it is used in the computation. 
 
-After defining the different pieces of a computation, they are recomposed using the execution constructs \verb.forall. and \verb.kernel..
-These templated functions execute a loop immediately, whereas the RAJALC \verb.make_forall. and \verb.make_kernel. extensions create wrapper objects that are executed through the call operator. 
-Calls to \verb.make_kernel. can be seen in lines 36 through 38 in Listing~\ref{3MMStart}, and the execution of the three matrix multiplications are found in lines 40 through 42. 
-While the RAJALC functions create computation objects rather than immediately executing the computation, their interfaces are the same as their base RAJA counterparts.
+Second, Views use the call operator to perform memory accesses. 
+By overloading this call operator, RAJALC~\cite{neth2021inter} introduced capabilities into RAJA for runtime symbolic evaluation.
+RAJALC uses the symbolic evaluation results to partially automate and ensure the safety of its schedule transformations.
+Here, we use it in automated transformation selection model.
 
+The usual evaluation of the lambda would read, combine, and write different data elements.
+With symbolic evaluation, operator overloading creates expression trees instead.
+As an example, we walk through the symbolic evaluation of a lambda containing the statement \verb.A(i) = B(i+1)..
+First to be evaluated is the expression \verb.i+1.. 
+The \verb.+. operator is overloaded to create a new symbolic iterator expression tree, representing the \verb.i+1.. 
+Then, the View's call operator is overloaded to create a symbolic access object, containing a reference to \verb.B. and the previously constructed expression tree.
+The access to \verb.A. resolves to a similar symbolic access object.
+Finally, the assignment operator is overloaded to mark the symbolic access to \verb.B. as a read and the access to \verb.A. as a write.
+After the lambda is done evaluating, the symbolic accesses are extracted from the symbolic iterator that was passed into the lambda, which maintains a list of all the accesses of which it was a part.
 
-Throughout the computation, the data is accessed in different orders.
-For example, consider the Views \verb.A., \verb.B., and \verb.D..
-The order in which \verb.A. is accessed is different from \verb.D. because the argument order in their accesses are different.
-In contrast, while \verb.B. and \verb.D. have the same argument order, their access orders are still different because they have different layouts.
-Looking at the two references to \verb.F. in kernels two and three, we can see that even access order to the same data can change through a computation.
-Because different formats are optimal for different kernels, this creates an opportunity for optimization. 
-
+Because \FormatDecisions{} utilizes this feature of RAJALC, it inherits its limitations.
+Most important among them are the requirement that all accessed data is stored in Views and the prohibition of indirect accessing.
+These restrictions are only present when the programmer wishes to use the automated transformation selection system. 
+This means that a programmer can still use \FormatDecisions{} to do manual experimentation with layout transformations, an example of which can be found in Section~\ref{sec:miniQMC}.
 
 \subsection{Symbolic Iteration Spaces}
 \label{sec:SymbolicSegment}
@@ -294,12 +301,13 @@ RAJA offers two abstractions for describing a dimension of an iteration space: t
 The \verb.RangeSegment. represents a strided range of values while the \verb.ListSegment. represents an arbitrary list of values.
 The problem arises from the only way to combine segments to create multi-dimensional iteration spaces: cartesian product.
 Computations with dimensions that change through the computation, such as those with triangular iteration spaces, cannot be represented within this framework.
+Examples of these computations include LU decomposition, cholesky factorization, and statistical calculations like covariance and correlation.
 
-A programmer who wishes to write a loop with an iteration space that is not a cartesian product has few options.
-The first option is the only one that still uses RAJA and maintains the abstraction of a two dimensional loop: write a kernel that has a rectangular iteration space and guards iterations that are not part of the triangle.
-The second option sticks with RAJA but loses the abstraction of a two dimensional loop entirely: construct and traverse an index array.
-The third option sets aside RAJA entirely to maintain the abstraction of a two dimensional loop: use regular C++.
-These options are all troublesome, for performance in the first case, and portability/maintainance in the second and third. 
+% A programmer who wishes to write a loop with an iteration space that is not a cartesian product has few options.
+% The first option is the only one that still uses RAJA and maintains the abstraction of a two dimensional loop: write a kernel that has a rectangular iteration space and guards iterations that are not part of the triangle.
+% The second option sticks with RAJA but loses the abstraction of a two dimensional loop entirely: construct and traverse an index array.
+% The third option sets aside RAJA entirely to maintain the abstraction of a two dimensional loop: use regular C++.
+% These options are all troublesome, for performance in the first case, and portability/maintainance in the second and third. 
 
 To address this limitation and represent iteration spaces with relations between the dimensions, we introduce the \verb.SymbolicSegment. type. 
 Unlike the \verb.RangeSegment., which requires integer values for its start, stop, and stride, the \verb.SymbolicSegment. supports expressions that combine other segments with constant values. 
@@ -307,43 +315,6 @@ This process involves two elements.
 First, the \verb.SymbolicSegment. objects maintain their current value through the execution of a kernel. 
 Second, rather than returning a static value, the \verb.begin(). and \verb.end(). methods calculate the start and stop values dynamically based on the expressions used in their construction. 
 An example using our approach to define a triangular iteration space is shown in Listing~\ref{TriangularIterationSpace}.
-
-% \begin{lstlisting}
-% // Reference Triangular Loop Nest
-% for(int i = 0; i < N; i++) {
-% 	for(int j = i+1; j < M; j++) {
-% 		bar(i,j);
-% 	}
-% }
-
-% //Option 1: Guard
-% auto iSeg = RangeSegment(0,N);
-% auto jSeg = RangeSegment(0,M);
-% auto iterationSpace = make_tuple(iSeg,jSeg);
-
-% auto lambda1 = [&](auto i, auto j) {
-%   if (j >= i+1) {
-% 		bar(i,j);
-% 	}
-% };
-% kernel<2DPOLICY>(iterationSpace, lambda1);
-
-% //Otion 2: Index Array
-% std::vector<int> iVals;
-% std::vector<int> jVals;
-
-% for(int i = 0; i < N; i++) {
-% 	size_t numJs = M - (i+1);
-% 	std::vector<int> iTemp(numJs, i);
-% 	iVals.insert(iVals.end(), iTemp.begin(), iTemp.end());
-% 	std::vector<int> jTemp(numJs);
-
-% }
-
-% \end{lstlisting}
-
-
-
 
 \begin{figure}
 	\begin{lstlisting}[caption={An example of a loop with a triangular iteration space, expressed in C++ and using our SymbolicSegments.},label={TriangularIterationSpace}]
@@ -364,48 +335,50 @@ auto segs = make_tuple(i_seg, j_seg);
 
 \section{Transforming Data Layouts}
 
-\begin{figure}
-	\begin{lstlisting}[caption={Changing data layouts for one View in the \textsc{3mm} benchmark manually.},label={ByHand3MM}]
-auto knl1 = make_kernel<KPOL>(segs1, [=](auto i0, auto i1, auto i2) {
-	E(i0, i1) += A(i0, i2) * B(i2, i1);
-});
-auto knl2 = make_kernel<KPOL>(segs2, [=](auto i0, auto i1, auto i2) {
-	F(i0, i1) += C(i0, i2) * D(i2, i1);
-});
-auto knl3 = make_kernel<KPOL>(segs3, [=](auto i0, auto i1, auto i2) {
-	G(i0, i1) += E(i0, i2) * F(i2, i1);
-});
 
-knl1();
 
-// Reorder F's data for row-major order
-double * tmp1 = new double[n*n];
-for(int i = 0; i < n; i++) {
-	for(j = 0; j < n; j++){
-		tmp1[i*n + j] = F(i,j);
-	}
-}
-memcpy(F.data, tmp1, n*n);
-F.layout = row_major;
-delete[] tmp1;
+% \begin{figure}
+% 	\begin{lstlisting}[caption={Changing data layouts for one View in the \textsc{3mm} benchmark manually.},label={ByHand3MM}]
+% auto knl1 = make_kernel<KPOL>(segs1, [=](auto i0, auto i1, auto i2) {
+% 	E(i0, i1) += A(i0, i2) * B(i2, i1);
+% });
+% auto knl2 = make_kernel<KPOL>(segs2, [=](auto i0, auto i1, auto i2) {
+% 	F(i0, i1) += C(i0, i2) * D(i2, i1);
+% });
+% auto knl3 = make_kernel<KPOL>(segs3, [=](auto i0, auto i1, auto i2) {
+% 	G(i0, i1) += E(i0, i2) * F(i2, i1);
+% });
 
-knl2();
+% knl1();
 
-// Reorder F's data for column-major order
-double * tmp2 = new double[n*n];
-for(int i = 0; i < n; i++) {
-	for(j = 0; j < n; j++){
-		tmp2[j*n + i] = F(i,j);
-	}
-}
-memcpy(F.data, tmp2, n*n);
-F.layout = col_major;
-delete[] tmp2;
+% // Reorder F's data for row-major order
+% double * tmp1 = new double[n*n];
+% for(int i = 0; i < n; i++) {
+% 	for(j = 0; j < n; j++){
+% 		tmp1[i*n + j] = F(i,j);
+% 	}
+% }
+% memcpy(F.data, tmp1, n*n);
+% F.layout = row_major;
+% delete[] tmp1;
 
-knl3();
-	\end{lstlisting}
-	\Description[Manual implementation of layout transformation]{Fully described in the text.}
-\end{figure}
+% knl2();
+
+% // Reorder F's data for column-major order
+% double * tmp2 = new double[n*n];
+% for(int i = 0; i < n; i++) {
+% 	for(j = 0; j < n; j++){
+% 		tmp2[j*n + i] = F(i,j);
+% 	}
+% }
+% memcpy(F.data, tmp2, n*n);
+% F.layout = col_major;
+% delete[] tmp2;
+
+% knl3();
+% 	\end{lstlisting}
+% 	\Description[Manual implementation of layout transformation]{Fully described in the text.}
+% \end{figure}
 
 \begin{figure}
 \begin{lstlisting}[caption={Changing data layouts for three Views in the \textsc{3mm} benchmark using \FormatDecisions.},
@@ -434,18 +407,20 @@ computation();
 \Description{Fully described in the text.}
 \end{figure}
 
-RAJA's existing support for changing data layouts is minimal. 
-While Views can be instantiated with different layouts, changing the layout of an existing View is not as simple.
-This is because changing layouts also requires reordering the underlying data to match the new layout. 
-To implement such a layout change by hand requires the programmer to allocate a new temporary array, 
-copy the data from the View to the temporary array in the right order, 
-copy the data \textit{back} to the memory in the View, 
-and then finally update the View's layout object.
-This work removes that barrier by providing a declarative data optimization system and evaluating
-it within the context of RAJALC.
-
+RAJA's existing support for changing data layouts is limited to the point of instantiation.
+This work removes that barrier by providing a declarative data optimization system for specifying layout transformations between loops.
+By combining user-guided layout specifications with optional automated support, \FormatDecisions{} gives the programmer more control over the optimization of their program.
 
 \subsection{User-Guided Layout Transformations}
+
+Consider again the computation in Listing~\ref{3MMStart}.
+Throughout the computation, the data is accessed in different orders.
+For example, note the Views \verb.A., \verb.B., and \verb.D..
+The order in which \verb.A. is accessed is different from \verb.D. because the argument order in their accesses are different.
+In contrast, while \verb.B. and \verb.D. have the same argument order, their access orders are still different because they have different layouts.
+Looking at the two references to \verb.F. in kernels two and three, we can see that even access order to the same data can change through a computation.
+Because different formats are optimal for different kernels, this creates an opportunity for optimization. 
+
 Our approach, shown in action in Listing~\ref{FormatDecisions3MM}, introduces a single user-facing class, appropriately named \verb.FormatDecisions..
 Rather than inserting code blocks to change a View's data layout between kernel executions, the user register choices for what format the data should have during different computations. 
 Once the user has finished registering their choices, they can launch the supplementary model to identify additional optimizations or immediately generate the loop chain containing the computations and the conversions.
@@ -459,10 +434,10 @@ Lines 13 through 17 of Listing~\ref{FormatDecisions3MM} show four such registere
 While we provide a supplementary decision model that can identify additional worthwhile layout changes, its use is not mandatory.
 To ``fill-in'' the user's choices with those of the model, the programmer can use the \verb.model(). method.
 Because this method uses the symbolic evaluation capabilities provided by RAJALC, it can only be used when the operations are supported for symbolic evaluation.
-Most importantly, this means that the kernels cannot make indirect accesses (\verb.a(b(i)).), or call functions within the lambdas that use the loop iterators.
+This means that the kernels cannot make indirect accesses (\verb.a(b(i)).), or call functions within the lambdas that use the iterators.
 
 Regardless of whether the user has used the model or not, 
-after the user has registered their choices, the complete computation with interspersed format conversions is generated using the \verb.generate(). method.
+the complete computation with interspersed format conversions is generated using the \verb.generate(). method.
 
 \subsection{Selecting Decision Semantics}
 
@@ -479,10 +454,10 @@ Second, registering conversions requires specification of both the input and out
 Any conversion can be specified with two format registrations, but no number of conversion registrations can specify the same thing as a single format registration.
 
 With these considerations in mind, we decided on two methods: \verb.set_format_for. and \verb.set_output_format..
-When choosing this pair, the shorter \verb.set_format. was considered, but lacks the mnemonic match between the words of the method name and the order of the parameters. We \textbf{set} the View to \textbf{format} X \textbf{for} computation Y. 
+When choosing this pair, the shorter \verb.set_format. was considered, but lacks the mnemonic match between the words of the method name and the parameter order. We \textbf{set} the View to \textbf{format} X \textbf{for} computation Y. 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Constraint Model for Supplementary Transformations}
+\section{Constraint Model}
 
 In addition to the format changes registered by the user, \FormatDecisions{} gives the user the option to automate the transformation selection process through the \verb.model(). method.
 This capability means that even without any registered format choices, \FormatDecisions{} often selects the same changes the user would themselves choose.
@@ -494,9 +469,9 @@ While this model is built into the \FormatDecisions{} system, alternative models
 
 \subsection{Constraining the Decision Space}
 
-This optimization problem can intuitively formulated as a graph problem in which nodes represent using a format for a computation and the edges represent conversions between formats~\cite{kennedy1998automatic}.
+This optimization problem can be formulated as a graph problem in which nodes represent using a format for a computation and the edges represent conversions between formats, as shown by Kennedy and Kremer in~\cite{kennedy1998automatic}.
 Then, nodes and edges are assigned weights based on the cost of using that format or making that conversion. 
-In this formulation, the shortest path through the graph represents the optimal set of formats and conversions to use.
+In this formulation, the shortest path represents the optimal set of formats and conversions to use.
 
 Figure~\ref{graphModel} shows the constraints used to model the View \verb.F. from Listing~\ref{FormatDecisions3MM}.
 The variables of this optimization problem are boolean decision variables representing the possible format choices. 
@@ -574,7 +549,7 @@ Because a format conversion depends the format coming in and going out of the co
 For example, consider the conversion step between \verb.knl1. and \verb.knl2..
 There are two possible conversions to consider: row-major to row-major and column-major to row-major. 
 Converting from row-major to row-major requires no action, so we  find the term $0 * x_{(F,row,knl1)} * x_{(F,row,knl2)}$ in the objective function.
-Converting from column-major to row-major does require a reformating, so we  also find a term $c^{\prime\prime} * x_{(F,col,knl1)} * x_{(F,row,knl2)}$ in the objective function.
+Converting from column-major to row-major does require a reformatting, introducing the term $c^{\prime\prime} * x_{(F,col,knl1)} * x_{(F,row,knl2)}$.
 
 Once the objective function is constructed, we can search for the format choices that minimize it, but first we need to determine the actual values for the cost coefficients.
 
@@ -583,7 +558,7 @@ Once the objective function is constructed, we can search for the format choices
 It is generally possible to determine analytically if a kernel's data access would perform better with one layout or another; stride one accesses are preferable.
 It is much more difficult to weigh the magnitude of this benefit against the cost of converting from one layout to another. 
 Of course, there are useful heuristics, but model accuracy requires the incorporation of system-specific profiling information. 
-Two types of costs need estimation: use costs, which represent the estimated cost of using a particular layout for a kernel, and conversion costs, which represent the cost of converting from one format to another.
+Two types of costs need estimation: use costs, which represent the estimated cost of using a particular layout for a kernel, and conversion costs, which represent the cost of converting between formats.
 
 Modeling the performance of a data access depends on three pieces of information: the nesting order of the kernel containing the access, the order of the dimensions in the View's layout, and the order of the arguments in the access.
 Thus, the function we must construct to do this modeling will be parameterized by these attributes.
@@ -621,9 +596,10 @@ The second step is to normalize based on the kernel order.
 This process answers the question ``What argument order results in the same access pattern when using the canonical nesting order?''
 This is done by identifying the position of each layout-normalized argument in the nesting order. 
 Using the kernel order $(2,1,0)$ from above, We get a fully normalized access order of $(1,2,0)$.
-This fully normalized access order is then used as the layout order in the generic modeling function.
 
-\todo{need to connect from this result to the kernel that actually does the estimation}
+All data accesses with the same fully normalized order are modelled using the same modeling kernel. 
+This kernel is constructed with a fixed policy and argument order so that one lambda and kernel policy can be used for modeling each layout. 
+
 
 \begin{figure*}
 
@@ -631,7 +607,7 @@ This fully normalized access order is then used as the layout order in the gener
 		\begin{center}
 			\begin{tabular} {|c|c|c|}
 				\hline
-				Kernel & Policy Order \\ \hline
+				Kernel & Nesting Order \\ \hline
 				knl1 & (0,1,2) \\
 				knl2 & (2,0,1) \\
 				\hline
@@ -650,12 +626,12 @@ This fully normalized access order is then used as the layout order in the gener
 				\hline
 				Information & Source \\ \hline 
 				Argument Order & Symbolic evaluation  \\
-				Layout Order & Symbolic evaluation \\
-				Policy Order & Template parameter \\
+				Layout Order & Varied for modeling\\
+				Nesting Order & Template parameter \\
 				\hline
 			\end{tabular}
 		\end{center}
-		\caption{The information used to calculate access orders and how they are collected. Policy orders come from the policies on lines 12-30, argument orders from the View references on line 9, and layout orders from the data initialization on lines 1-6.}
+		\caption{The information used to calculate access orders and how they are collected. Nesting orders come from the policies on lines 12-30, argument orders from the View references on line 9, and layout orders from the data initialization on lines 1-6.}
 		\label{accessOrder:orders}
 	\end{subfigure}
 
@@ -705,7 +681,7 @@ auto knl2 = make_kernel<Policy_201>(domain, matmul_lambda);
 		\begin{center}
 		Argument Order $\xrightarrow[\text{Layout Order}]{permute}$ Layout-Normalized Order
 
-		Layout-Normalized Order $\xrightarrow[\text{Policy Order}]{indexof}$ Access Order
+		Layout-Normalized Order $\xrightarrow[\text{Nesting Order}]{indexof}$ Access Order
 
 		\vspace{5px}
 		\dots\dots\dots
@@ -723,7 +699,7 @@ auto knl2 = make_kernel<Policy_201>(domain, matmul_lambda);
 
 		knl2, C: $(0,1)$ $\xrightarrow[(0,1)]{permute}$ $(0,1)$ $\xrightarrow[(2,0,1)]{indexof}$ $(1,2)$.
 	\end{center}
-	\caption{The calculation process. The first transformation normalizes different layouts. The second normalizes different policy orders. The resulting tuple represents the canonical data access with the same performance behavior. References with the same access order can be modeled with the same microbenchmark.}
+	\caption{The calculation process. The first transformation normalizes different layouts. The second normalizes different nesting orders. The resulting tuple represents the canonical data access with the same performance behavior. References with the same access order can be modeled with the same microbenchmark.}
 	\label{accessOrder:calc}
 	\end{subfigure}
 
@@ -735,12 +711,21 @@ auto knl2 = make_kernel<Policy_201>(domain, matmul_lambda);
 
 
 %%%%%%%%%%%%%%%%%%%%%%
-\section{Experiment 1: RAJAPerf Benchmark Suite}
+\section{RAJAPerf Benchmark Suite}
 \label{sec:Experiment1}
 
-Our first evaluation experiment examines application performance and programmer productivity using seven benchmarks.
-Six come from the Polybench~\cite{pouchet2012polybench} section of the RAJAPerf suite~\cite{hornung2017raja}. 
-Of those six, we added four--\textsc{correlation}, \textsc{covariance}, \textsc{doitgen}, and \textsc{symm}--for this contribution. 
+Our first evaluation experiment examines application performance and programmer productivity using benchmarks from the RAJA Performance Suite (RAJAPerf)~\cite{hornung2017raja}. 
+When selecting benchmarks for inclusion in our evaluation, we had three criteria.
+First, the benchmark needs to use multidimensional data. 
+Benchmarks that use only scalar and one-dimensional data cannot be optimized with \FormatDecisions{} because there is only one format to choose from.
+This criteria excludes 45 of the 63 benchmarks.
+Second, the benchmark must make at least one access that traverses its data with a stride not equal to 1. 
+Of the remaining 18, this excludes eight.
+Finally, benchmarks with equal iteration space and data space dimensionality are excluded. 
+This is to ensure enough data reuse to make conversion between formats worthwhile.
+This leaves two matrix multiplication-based benchmarks and three partial assembly benchmarks.
+However, because of the small extents in the partial assembly benchmarks, we focus on the \textsc{2mm} and \textsc{3mm} kernels.
+To this pair, we add an additional four benchmarks to RAJAPerf's Polybench~\cite{pouchet2012polybench} section: \textsc{correlation}, \textsc{covariance}, \textsc{doitgen}, and \textsc{symm}. 
 
 \textsc{2mm} solves the matrix expression $A*B*C$ using two matrix multiplications. 
 First, it computes $A*B$ and stores the results in a temporary array.
@@ -759,7 +744,7 @@ It computes $A*B$, then $C*D$, then multiplies the results.
 		\hline
 		\verb.RAJALC. & Yes & No & - & - \\
 		\verb.Hand_Layout. & Yes & Yes & User & No API \\
-		\verb.Format_Decision. & Yes & Yes & User & API \\
+		\verb.Format_Decisions. & Yes & Yes & User & API \\
 		\verb.Model_Choice. & Yes & Yes & Model & API \\
 		\hline
 	\end{tabular}
@@ -770,7 +755,7 @@ For each benchmark, we implement 4 variants and compare execution time and code 
 \verb.RAJALC. implements the computations using the kernel objects discussed is Section~\ref{sec:kernelObjects}. 
 \verb.Hand_Layout. implements identified transformations without using \FormatDecisions. 
 Because this variant does not have any analysis overhead, we expect this variant to be the fastest.
-The \verb.Format_Decision. variant uses \FormatDecisions to register the identified layout changes but does not use the model to look for other beneficial transformations.
+The \verb.Format_Decisions. variant uses \FormatDecisions to register the identified layout changes but does not use the model to look for other beneficial transformations.
 Last, \verb.Model_Choice. allows the decision model to make all layout choices without providing any user-identified transformations.
 
 \subsection{Performance Evaluation}
@@ -779,6 +764,8 @@ We run with 22 threads on one socket to avoid transfers over a relatively slow i
 All compilation used GCC version 8.3.1 with \verb.-O3. optimization.
 \label{sec:systemDetails}
 Figure~\ref{fig:speedups} reports the average speedup of the variants relative to the \verb.RAJALC. variant across 5 runs. 
+We run the kernels at three problem sizes.
+The default size for the RAJAPerf suite is SizeFactor=1, while SizeFactors 2 and 4 scale the problem size by 2 and 4, respectively.
 
 \begin{figure*}
 	\includegraphics[width=0.9\textwidth]{speedups.pdf}
@@ -789,26 +776,26 @@ Figure~\ref{fig:speedups} reports the average speedup of the variants relative t
 
 For the \textsc{2mm} and \textsc{3mm} kernels, the performance of the three layout-changing variants are comparable. 
 For the standard (SizeFactor=1) problem size, the performance effects are minimal, with \verb.Hand_Layout. providing a 0.3\% and 0.6\% speedup to \textsc{2mm} and \textsc{3mm} respectively. 
-The \verb.Format_Decision. variant provides a small 0.2\% speedup to \textsc{2mm} and 0.3\% to \textsc{3mm}, while the \verb.Model_Choice. variant shows a decrease in performance of 0.3\% and 1.3\%, respectively. 
+The \verb.Format_Decisions. variant provides a small 0.2\% speedup to \textsc{2mm} and 0.3\% to \textsc{3mm}, while the \verb.Model_Choice. variant shows a decrease in performance of 0.3\% and 1.3\%, respectively. 
 With the middle problem size (SizeFactor=2), the performance effects of layout transformations are greater. 
-For \textsc{2mm}, we see a 11.1\% speedup for the \verb.Hand_Layout. variant and 11.0\% for \verb.Format_Decision. and \verb.Model_Choice. 
-For \textsc{3mm}, we see a similar pattern slightly modified by the higher modeling costs of the \textsc{3mm} kernel. \verb.Hand_Layout. gives a 8.3\% speedup, \verb.Format_Decision. a 8.1\% speedup, and \verb.Model_Choice. a 7.6\% speedup.
+For \textsc{2mm}, we see a 11.1\% speedup for the \verb.Hand_Layout. variant and 11.0\% for \verb.Format_Decisions. and \verb.Model_Choice. 
+For \textsc{3mm}, we see a similar pattern slightly modified by the higher modeling costs of the \textsc{3mm} kernel. \verb.Hand_Layout. gives a 8.3\% speedup, \verb.Format_Decisions. a 8.1\% speedup, and \verb.Model_Choice. a 7.6\% speedup.
 Finally, for the large problem size (SizeFactor=4), the results are similar.
 All three variants of \textsc{2mm} see a 8.4\% speedup, whereas the variants of \textsc{3mm} see a 8.0\%, 7.9\%, and 7.8\% speedup.
 
 For \textsc{correlation}, there is less variability across problem sizes. 
 For SizeFactors 1, 2, and 4, the \verb.Hand_Layout. variant sees speedups of 4.6\%, 7.6\%, and 8.6\%, respectively. 
-The \verb.Format_Decision. variant does slightly better at 5.2\%, 8.6\%, and 9.6\%.
+The \verb.Format_Decisions. variant does slightly better at 5.2\%, 8.6\%, and 9.6\%.
 \verb.Model_Choice. remains competitive at 4.9\%, 8.6\%, and 8.7\%.
 The \textsc{covariance} kernel performs similarly.
 The \textsc{doitgen} kernel sees relatively flat performance across problem sizes and variants. All speedups are within 1.1\% of the baseline.
 
 The \textsc{symm} kernel performs less consistently than the other kernels.
-Still, the effects of the \verb.Hand_Layout. and \verb.Format_Decision. variants share the same direction.
-The standard problem size gives a 1.8\% speedup for \verb.Hand_Layout., a more significant speedup of 13.5\% for \verb.Format_Decision., and a slowdown of 13.3\% for \verb.Model_Choice.. 
+Still, the effects of the \verb.Hand_Layout. and \verb.Format_Decisions. variants share the same direction.
+The standard problem size gives a 1.8\% speedup for \verb.Hand_Layout., a more significant speedup of 13.5\% for \verb.Format_Decisions., and a slowdown of 13.3\% for \verb.Model_Choice.. 
 We attribute this slowdown for the standard problem size to the smaller amount of computation in the \textsc{symm} kernel that can offset the cost of the performance modeling. 
 For SizeFactor=2, we see speedups across the board, at 3.2\%, 17.4\%, and 5.3\% respectively.
-Finally, for SizeFactor=4, \verb.Hand_Layout. and \verb.Format_Decision. give speedups of 4.6\% and 17.5\% while \verb.Model_Choice. gives a speedup of 7.5\%.
+Finally, for SizeFactor=4, \verb.Hand_Layout. and \verb.Format_Decisions. give speedups of 4.6\% and 17.5\% while \verb.Model_Choice. gives a speedup of 7.5\%.
 
 
 \subsection{Productivity Evaluation}
@@ -823,15 +810,7 @@ When using the performance model to make the layout choices, this is reduced fur
 While the productivity benefit here is significant, \FormatDecisions{} is especially useful when making subsequent layout changes after the first. 
 Once a code has been changed to use \FormatDecisions{}, the change quantified in Figure~\ref{PolybenchSLOC}, further changes can be introduced with only a single line. 
 For example, manually tuning data layouts for a new machine amounts to a handful of reordered characters to describe the new layouts, the second argument in the calls on lines 13-16 of Listing~\ref{FormatDecisions3MM}. 
-
-Perhaps more important than the simple number of code changes when trying out new layouts is the ease of mistakes when implementing those transformations by hand. 
-When using \FormatDecisions{}, all the complexity of ensuring the transformations go as planned is boiled down to one method call.
-In the hand-implemented case, the programmer is responsible for correctly declaring the new data layout, optimizing the transformation itself, and appropriately updating the data structure to the new layout, among other things. 
-Forgetting one of these steps, or mistyping the desired data layout, can lead to incorrect results that could be caused by any of the different components.
-By removing this complexity, \FormatDecisions{} reduces the mental load on the programmer, freeing up capacity to explore more possible implementations.
-Overall, \FormatDecisions{} provides comparable--and sometimes better--performance improvements without the code complexity of implementing the transformations by hand.
-
-
+Overall, by compressing the complexities of modifying data layouts, \FormatDecisions{} reduces the mental load on the programmer, freeing up capacity to explore more possible transformations.
 
 \begin{figure}
 	\includegraphics[width=\columnwidth]{sloc.pdf}
@@ -840,35 +819,27 @@ Overall, \FormatDecisions{} provides comparable--and sometimes better--performan
 	\Description[Polybench SLOC]{Bar chart for the source lines of code changed for the different Polybench kernels. Each kernel has a cluster of four bars, one for each variant that is not the baseline.}
 \end{figure}
 
-
-
-\section{Case Study: Quantum Monte Carlo Simulation}
-
+\section{Quantum Monte Carlo Simulation}
+\label{sec:miniQMC}
 In all but the simplest (and least interesting) quantum systems, solving the Schr\"odinger equation requires numerical approximation. 
 Quantum Monte Carlo algorithms have been developed as a solution to this problem of fast, accurate approximation.
 QMCPACK~\cite{kim2018qmcpack} is one application implementing this approach, and lead to the development of a computationally representative miniapp, called miniQMC~\cite{richards2018fy18}.
 
 As part of the evaluation of our contributions, we use \FormatDecisions{} to explore possible optimizations to miniQMC.
-The results of our evaluation are mixed, identifying layout transformations that improve performance compared to not making transformations. 
-However, while performance improves compared to a version that uses \FormatDecisions{} without any transformations, it is overall slower than a version that immediately executes the kernel objects rather than grouping them in a container.
+Intending to illustrate the progression of the exploration, we present a chronology of attempted transformations.
+The results of our evaluation are mixed.
+We identify layout transformations that improve performance compared to not making transformations, but it is overall slower than a version that immediately executes the kernel objects rather than grouping them in a container.
 We show that this is due to the use of any containing object rather than any overhead caused by \FormatDecisions{} specifically.
 
-miniQMC has four important kernels: determinant update, spline evaluation, Jastrow factors, and distance tables.
-Of these, the determinant update kernel is most important, as it both accounts for 30 to 50\% of computation time and is the source of the application's cubic scaling.
-The determinant update kernel is implemented by the \verb.DelayedUpdate. class.
-This class maintains four matrices and two vectors internally and uses one passed as arguments to the methods. 
-Once a sufficiently large number of updates have been collected, they are applied together with four loop nests.
-First is the matrix multiplication $tempMat = U^{\top} * Ainv$.
-Second is a one dimensional loop nest that updates $tempMat$.
-Third is the matrix multiplication $U = V * Binv$.
-Fourth and final is the matrix multiplication $Ainv -= U*tempMat$.
-Listing~\ref{updateInvMatRef} shows a reference implementation for this loopchain.
-\begin{lstlisting}[caption={Main loopchain of the determinant update kernel. Note that the access/storage order here is reversed.}]
+\subsection{The Determinant Update Kernel}
+
+\begin{figure}
+\begin{lstlisting}[caption={Main loopchain of the determinant update kernel. Note that the access/storage order here is reversed.},label={updateInvMatRef}]
 //tempMat = U^T * Ainv
 for(i = 0; i < dc; i++) {
-  for(j = 0; j < norb; j++) {
+	for(j = 0; j < norb; j++) {
 		tempMat(i,j) = 0;
-    for(k = 0; k < norb; k++) {
+		for(k = 0; k < norb; k++) {
 			tempMat(j,i) += U(i,k) * Ainv(j,k);
 		}
 	}
@@ -880,9 +851,9 @@ for(i = 0; i < dc; i++) {
 
 //U = V * Binv
 for(i = 0; i < dc; i++) {
-  for(j = 0; j < norb; j++) {
+	for(j = 0; j < norb; j++) {
 		U(i,j) = 0;
-    for(k = 0; k < norb; k++) {
+		for(k = 0; k < norb; k++) {
 			U(j,i) += V(k,i) * Binv(j,k);
 		}
 	}
@@ -890,48 +861,50 @@ for(i = 0; i < dc; i++) {
 
 // A -= U * tempMat
 for(i = 0; i < dc; i++) {
-  for(j = 0; j < norb; j++) {
-    for(k = 0; k < norb; k++) {
+	for(j = 0; j < norb; j++) {
+		for(k = 0; k < norb; k++) {
 			Ainv(j,i) -= U(k,i) * tempMat(j,k);
 		}
 	}
 }
 \end{lstlisting}
+\end{figure}
+
+miniQMC has four important kernels: determinant update, spline evaluation, Jastrow factors, and distance tables.
+Of these, the determinant update kernel is most important, as it both accounts for 30 to 50\% of computation time and is the source of the application's cubic scaling.
+The determinant update kernel is implemented by the \verb.DelayedUpdate. class.
+This class maintains four matrices and two vectors internally and uses one passed as arguments to the methods. 
+Once a sufficiently large number of updates have been collected, they are applied together with four loop nests.
+First is the matrix multiplication $tempMat = U^{\top} * Ainv$.
+Second is a one dimensional loop nest that updates $tempMat$.
+Third is the matrix multiplication $U = V * Binv$.
+Fourth and final is the matrix multiplication $Ainv -= U*tempMat$.
+Listing~\ref{updateInvMatRef} shows a reference implementation for this loopchain.
 
 A look at the second loop in the chain presents an early challenge: indirect accesses. 
 \verb.tempMat. is indexed by the indirect access expression \verb.delay_list(i).. 
 This type of access is not supported by the symbolic evaluation capabilities in RAJALC, meaning that the automated performance model cannot be used here.
-However, this limitation should not restrict the programmer's ability to explore layout changes without the help of the performance model. 
-To overcome this limitation, \FormatDecisions{} must only generate symbolic evaluation code when instructed. 
-This led us to incorporate the \verb.model(). template method. 
-All symbolic evaluation is performed here, so code that does not make a call to the method need not limit their kernels to the accesses supported by RAJALC symbolic evaluation.
+However, this limitation does not restrict the programmer's ability to explore layout changes without the help of the performance model. 
+For our experimentation, we use the `1 2 2'' shape, which simulates 128 atoms and 1536 electrons.
 
-
-The RAJA reference implementation makes calls to each of the kernels in sequence:
-\begin{lstlisting}
-knl1();
-knl2();
-knl3();
-knl4();
-\end{lstlisting}
-Its execution time is 10.18 seconds. All times reported here are for the 1 2 2 shape.
-
-Our first \FormatDecisions{} variant seeks to identify a performance baseline to get a sense of the overhead of using \FormatDecisions{}:
-\begin{lstlisting}
-auto dec = format_decisions(tie(U, Ainv, tempMat, V), 
-  knl1, knl2, knl3, knl4);
-auto comp = dec.generate();
-comp();
-\end{lstlisting}
-Its execution time is 23.63 seconds. A significant slowdown that we will return to exploring momentarily, after identifying any layout transformations that reduce it.
-
-
-The exploration of possible data layout transformations begins with identifying views that are accessed out of order. 
-Four matrices appear hear: \verb.Ainv., \verb.U., \verb.V., and \verb.tempMat..
-We start with all layout changes with mismatch orderings between the schedule and loopchain. Those choices are here:
-\begin{lstlisting}
-	auto dec = format_decisions(tie(U, Ainv, tempMat, V), 
-	   knl1, knl2, knl3, knl4);
+\subsection{Identifying Profitable Transformations}
+\begin{figure}
+\begin{lstlisting}[caption={Different layout transformations selected as part of the miniQMC exploration.}, label={miniQMCChoices}]
+{ // RAJA baseline
+	knl1(); //tempMat = U^T * Ainv
+	knl2(); //tempMat(delay_list(i), i) -= 1;
+	knl3(); //U = V * Binv
+	knl4(); // A -= U * tempMat
+}
+{ // FormatDecisions baseline
+	auto dec = format_decisions(tie(U,V,tempMat,Ainv), 
+	  knl1, knl2, knl3, knl4);
+	auto comp = dec.generate();
+	comp();
+}
+{// Fully enumerated version
+	auto dec = format_decisions(tie(U,V,tempMat,Ainv), 
+	  knl1, knl2, knl3, knl4);
 	dec.set_format_for(Ainv, {0,1}, knl1);
 	dec.set_format_for(Ainv, {1,0}, knl4);
 	dec.set_format_for(U, {0,1}, knl1);
@@ -940,91 +913,55 @@ We start with all layout changes with mismatch orderings between the schedule an
 	dec.set_format_for(tempMat, {0,1}, knl4);
 	dec.set_format_for(V, {1,0}, knl3);
 	auto comp = dec.generate();
-	comp();		
-\end{lstlisting}
-This fully transformed version executes in 27.28 seconds, slower than the \FormatDecisions{} baseline.
-
-To refine the transformation sequence, we note that the access to Ainv in the final kernel does not change most iterations, as it does not use the innermost loop index. 
-Our second transformation sequence uses this fact, making format choices only on views that mismatch and use the innermost index. Those choices are here:
-\begin{lstlisting}
-	auto dec = format_decisions(tie(U, V), knl1, knl2, knl3, knl4);
-	dec.set_format_for(U, {0,1}, knl1);
-	dec.set_format_for(U, {1,0}, knl4);
-	dec.set_format_for(V, {1,0}, knl3);
-	auto comp = dec.generate();
 	comp();
-\end{lstlisting}
-This version executes in 22.38 seconds, an improvement over the \FormatDecisions{} baseline. 
-
-The third and fourth versions explore which format changes caused the performance improvement.
-Version three isolates \verb.U.:
-\begin{lstlisting}
-	auto dec = format_decisions(tie(U), knl1, knl2, knl3, knl4);
-	dec.set_format_for(U, {0,1}, knl1);
-	dec.set_format_for(U, {1,0}, knl4);
-	auto comp = dec.generate();
-	comp();
-\end{lstlisting}
-It executes in 22.30 seconds.
-Version four isolates \verb.V..
-\begin{lstlisting}
-	auto dec = format_decisions(tie(V), knl1, knl2, knl3, knl4);
-	dec.set_format_for(V, {1,0}, knl3);
-	auto comp = dec.generate();
-	comp();
-\end{lstlisting}
-It executes in 23.43 seconds, indicating that most of the performance improvements come from the transformations applied to \verb.U..
-
-With a useful layout optimization isolated, we return to the significant difference between the original RAJA baseline code and the \FormatDecisions{} baseline.
-The first possible cause to explore is overhead from initializing the \FormatDecisions{} object, registering transformations, and generating the final computation. 
-To explore this cause, we return to the baseline implementation and wrap these components in an additional timer:
-\begin{lstlisting}
-firstGuessTimer->start();
-auto dec = format_decisions(tie(U, Ainv, tempMat, V), 
-  knl1, knl2, knl3, knl4);
+}
+{ // Refined version
+auto dec = format_decisions(tie(U,V), 
+knl1, knl2, knl3, knl4);
+dec.set_format_for(U, {0,1}, knl1);
+dec.set_format_for(U, {1,0}, knl3, knl4);
+dec.set_format_for(V, {1,0}, knl3);
 auto comp = dec.generate();
-firstGuessTimer->start();
 comp();
+}
 \end{lstlisting}
-This timer clocks a vanishly small contribution: 0.0022 seconds.
+\end{figure}
+
+To begin the search for a profitable transformation sequence, we enumerate the accesses with orders that do not align with the schedule, transforming to a layout with a stride of one.
+These selections can be seen in Figure~\ref{miniQMCChoices}
+However, this complete enumeration is slower than a baseline \FormatDecisions{} version that makes no conversions at all, with a runtime of 27.28 seconds compared to the baseline's 23.63.
+
+To refine the transformation sequence, we note that the access to \verb.Ainv. in the final kernel does not change most iterations, as it does not use the innermost loop index. 
+Our second transformation sequence uses this fact, making format choices only on Views that use the innermost index. 
+This version executes in 22.38 seconds, an improvement over the \FormatDecisions{} baseline. 
+Subsequent versions transforming only \verb.U. or \verb.V. indicate that this performance improvement is coming mainly from the transformations to \verb.U.
+
+\subsection{Proving Constness}
+
+While we are able to identify a transformation sequence that improves performance compared to the \FormatDecisions{} baseline, there is significant performance overhead compared to the RAJA baseline, 23.63 and 10.18 seconds respectively.
+The first possible cause to explore is overhead from initializing the \FormatDecisions{} object, registering transformations, and generating the final computation. 
+To explore this hypothesis, we return to the baseline implementation and wrap these components in an additional timer. 
+However, this timer clocks a vanishly small contribution: 0.0022 seconds.
 
 If the overhead is not a product of the \FormatDecisions{} object itself, it must be from the computation object it generates.
 Regardless of what conversions are registered, this computation object is a fixed-length loop chain.
 Between each of the kernels from the computation itself is one converter kernel for each of the Views being considered as targets for conversions.
 When there are no conversions to make, these converters should quickly resolve to a no-op.
-To better understand their contribution to the overall execution time, we compare our baseline, which has four converters between each of the original kernels, with a version that has just one:
-\begin{lstlisting}
-	auto dec = format_decisions(tie(U), knl1, knl2, knl3, knl4);
-	auto comp = dec.generate();
-	comp();
-\end{lstlisting}
+To better understand their contribution to the overall execution time, we compare our baseline, which has four converters between each of the original kernels, with a version that has just one.
 Compared to the baseline's 23.63 seconds, this version takes 23.43.
 While an ever-so-slight reduction in execution time, it is not nearly enough to account for the overhead.
 
 With the converters eliminated as a suspect, we are left only with the kernel container that holds the loop chain.
-We can create this container manually to exclude any possible influence of the \FormatDecisions{} code:
-\begin{lstlisting}
-auto chain = loop_chain(knl1, knl2, knl3, knl4);
-chain();
-\end{lstlisting}
+We can create this container manually to exclude any possible influence of the \FormatDecisions{} code.
 With an execution that takes 23.50 seconds, we have a clue as to the underlying cause.
 Something about having the kernel objects in a container is affecting their performance.
 At first glance, it seems that something in the chain's execution is causing the problem.
 However, this is unlikely, as the chain's call operator resolves at compile time to just a sequence of calls to each of the kernels.
 
-We can confirm this with a version that creates the loop chain object, but does not use it:
-\begin{lstlisting}
-auto comp = loop_chain(knl1, knl2, knl3, knl4);
-knl1();
-knl2();
-knl3();
-knl4();
-\end{lstlisting}
+We can confirm this with a version that creates the loop chain object, but does not use it to run the computation.
 This version takes 23.44 seconds, even though it, like the faster RAJA baseline, executes the kernel directly.
 This suggests that important compiler optimizations are no longer applied when the kernel objects are incorporated into another object. 
-
-
-
+However, when constructed with const references rather than by value, this performance reduction is removed.
 
 \section{Related Work}
 
@@ -1065,16 +1002,17 @@ Using a polyhedral framework, the Tiramisu DSL~\cite{baghdadi2019tiramisu} also 
 In constrast to these specialized approaches, our approach seeks to support a wider class of computations without needing the additional machinery required to use DSLs. 
 
 
-
 \section{Conclusion}
 
-Data format is an important consideration when optimizing applications.
+
+Effective use of the memory hierarchy is critical to application performance.
+One way of doing this is by changing how data is stored within memory.
 Yet, in performance portability libraries like RAJA and Kokkos, where one codebase is used for machines with different architectures, there are not yet tools for transforming the layout of data between parts of a computation. 
-Thus, if a developer wants to introduce these optimizations, they are left in a time-consuming, error-prone situation--further exacerbated by the potential for data layout transformations to not be worth the overhead.
+Thus, if a developer wants to introduce these optimizations, they are left in a time-consuming, error-prone situation --- further exacerbated by the potential for data layout transformations to not be worth the overhead.
 
 Our contribution, \FormatDecisions, remedies this situation by combining declarative format specification  interface with runtime performance modeling to supplement user directives.
 Integrated directly into the performance portability library RAJA, but possible in any library with computation objects and a data View-like abstraction, \FormatDecisions{} provides a flexible interface for quick exploration of data layout changes. 
-Additionally, \FormatDecisions{} uses an ILP formulation to identify other profitable transformations to \enquote{fill in} the user specification.
+Additionally, \FormatDecisions{} uses an ILP formulation to optionally identify other profitable transformations, \enquote{filling in} the user specification.
 
 When evaluated against hand-implemented layout transformations on seven benchmark kernels, \FormatDecisions{} provides comparable performance improvements with a fraction of the code changes.
 Furthermore, subsequent modifications to the layout transformations, for example as part of porting a codebase to a new machine, are reduced to single-line changes. 
